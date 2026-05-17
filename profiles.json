@@ -18,7 +18,7 @@
       { "id": 3, "action": "wait", "ms": 400, "label": "Pause" },
       { "id": 4, "action": "send", "text": "", "delay": 30, "label": "Send via Enter" },
       { "id": 5, "action": "wait", "ms": 5000, "label": "Wait for response" },
-      { "id": 6, "action": "copy", "selector": "[class*=\"message\"]:last-child", "label": "Copy response" }
+      { "id": 6, "action": "copy", "selector": ".message:last-child, [class*='response']", "polling": true, "label": "Extract streamed response" }
     ]
   }
 ]
