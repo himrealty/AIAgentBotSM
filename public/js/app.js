@@ -21,6 +21,7 @@ window.addEventListener('DOMContentLoaded', () => {
   startLive();
   setupClickOverlay();
   setupManualInput();
+  setupFloatingLogs();
   updateUrl();
   document.getElementById('profileSelect').addEventListener('change', () => {
     const profile = profiles.find(p => p.name === document.getElementById('profileSelect').value);
@@ -234,6 +235,39 @@ function setupSSE() {
   connect();
 }
 
+// ── FLOATING LOGS (Ctrl+L) ─────────────────────────────────
+function setupFloatingLogs() {
+  // Toggle on Ctrl+L
+  window.addEventListener('keydown', e => {
+    if (e.ctrlKey && e.key && e.key.toLowerCase() === 'l') {
+      e.preventDefault();
+      toggleFloatingLogs();
+    }
+  });
+  const closeBtn = document.getElementById('floatingClose');
+  if (closeBtn) closeBtn.addEventListener('click', () => toggleFloatingLogs(false));
+  const clearBtn = document.getElementById('floatingClear');
+  if (clearBtn) clearBtn.addEventListener('click', () => { document.getElementById('floatingLogBox').innerHTML = ''; });
+}
+
+function toggleFloatingLogs(forceState) {
+  const panel = document.getElementById('floatingLogs');
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none' && panel.style.display !== '';
+  const show = typeof forceState === 'boolean' ? forceState : !isOpen;
+  panel.style.display = show ? 'flex' : 'none';
+  panel.setAttribute('aria-hidden', show ? 'false' : 'true');
+  if (show) {
+    // copy latest logs
+    const main = document.getElementById('logBox');
+    const dest = document.getElementById('floatingLogBox');
+    if (main && dest) {
+      dest.innerHTML = main.innerHTML;
+      dest.scrollTop = dest.scrollHeight;
+    }
+  }
+}
+
 // ── PROFILES ──────────────────────────────────────────────
 async function loadProfiles() {
   try {
@@ -338,9 +372,35 @@ function setResponse(text) {
   box.scrollTop = box.scrollHeight;
 }
 
-function copyResponse() {
-  const text = document.getElementById('responseBox').textContent;
-  navigator.clipboard.writeText(text).then(() => addLog('Response copied', 'info'));
+async function copyResponse() {
+  const text = document.getElementById('responseBox')?.textContent || '';
+  // Try modern clipboard API first
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      addLog('Response copied', 'info');
+      return;
+    } catch (e) {
+      addLog('Clipboard API failed: ' + (e && e.message ? e.message : e), 'warn');
+    }
+  }
+
+  // Fallback: use a temporary textarea and execCommand
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) addLog('Response copied (fallback)', 'info');
+    else addLog('Copy failed', 'error');
+  } catch (e) {
+    addLog('Copy failed: ' + (e && e.message ? e.message : e), 'error');
+  }
 }
 
 // ── BUILDER ───────────────────────────────────────────────
@@ -676,11 +736,18 @@ function addLog(message, level = 'info') {
   entry.className = `log-entry ${level}`;
   const time = new Date().toLocaleTimeString('en', { hour12: false });
   entry.innerHTML = `<span class="log-time">${time}</span>${escHtml(message)}`;
-  box.appendChild(entry);
-  if (document.getElementById('autoScrollLog').checked) {
-    box.scrollTop = box.scrollHeight;
+  if (box) {
+    box.appendChild(entry);
+    if (document.getElementById('autoScrollLog')?.checked) box.scrollTop = box.scrollHeight;
+    while (box.children.length > 500) box.removeChild(box.firstChild);
   }
-  while (box.children.length > 500) box.removeChild(box.firstChild);
+  const fbox = document.getElementById('floatingLogBox');
+  if (fbox) {
+    const fentry = entry.cloneNode(true);
+    fbox.appendChild(fentry);
+    fbox.scrollTop = fbox.scrollHeight;
+    while (fbox.children.length > 500) fbox.removeChild(fbox.firstChild);
+  }
 }
 
 function clearLogs() {

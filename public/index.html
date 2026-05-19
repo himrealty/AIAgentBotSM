@@ -81,6 +81,11 @@
     .api-hint { font-size: 11px; color: #666; margin-top: 12px; padding-top: 10px; border-top: 1px solid #222; }
     .api-hint code { background: #222; padding: 2px 5px; border-radius: 3px; }
     .logs-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    /* Floating logs panel (toggled with Ctrl+L) */
+    .floating-logs { position: fixed; right: 18px; bottom: 18px; width: 380px; height: 260px; background: #0b0b0d; border: 1px solid #222; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.6); z-index: 9999; display: flex; flex-direction: column; overflow: hidden; }
+    .floating-logs-header { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background: linear-gradient(90deg,#15151a,#0f0f12); border-bottom:1px solid #161616; color:#ddd; font-weight:600; }
+    .floating-logs .log-box { padding:8px; font-size:12px; overflow:auto; background:transparent; border:none; }
+    .floating-close-btn { background:transparent; border:none; color:#cbd5e1; cursor:pointer; font-size:14px; padding:4px 8px; }
   </style>
 </head>
 <body>
@@ -271,6 +276,18 @@
     </div>
   </section>
 </main>
+
+  <!-- Floating logs panel (toggle with Ctrl+L) -->
+  <div id="floatingLogs" class="floating-logs" style="display:none" aria-hidden="true">
+    <div class="floating-logs-header">
+      <span>Logs</span>
+      <div>
+        <button id="floatingClear" class="btn-sm" onclick="document.getElementById('floatingLogBox').innerHTML=''">Clear</button>
+        <button id="floatingClose" class="floating-close-btn" title="Close">✕</button>
+      </div>
+    </div>
+    <div id="floatingLogBox" class="log-box"></div>
+  </div>
 
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 <script src="/js/app.js"></script>

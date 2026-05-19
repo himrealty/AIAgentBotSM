@@ -278,6 +278,7 @@ let page = null;
 let isRunning = false;
 let shouldStop = false;
 let pingInterval = null;
+let lastResponse = { text: '', timestamp: null, profileName: '', prompt: '' };
 const PROFILES_FILE = path.join(__dirname, 'profiles.json');
 const VIEWPORT = { width: 1280, height: 720 };
 const logClients = new Set();
@@ -312,6 +313,16 @@ function startSelfPinger() {
     }
   }, PING_INTERVAL);
   log(`✅ Self-pinger started (interval: ${PING_INTERVAL / 1000}s)`);
+}
+
+function saveLastResponse(text, profileName, prompt) {
+  lastResponse = {
+    text,
+    timestamp: new Date().toISOString(),
+    profileName,
+    prompt
+  };
+  log(`💾 Response saved: ${profileName}`);
 }
 
 async function loadProfiles() {
@@ -811,6 +822,9 @@ app.post('/run/:slug', requireApiKey, async (req, res) => {
   if (!prompt) return res.status(400).json({ error: 'prompt required' });
   try {
     const reply = await runProfileBySlug(slug, prompt);
+    const profiles = await loadProfiles();
+    const profile = profiles.find(p => p.slug === slug);
+    saveLastResponse(reply, profile?.name || slug, prompt);
     res.json({ ok: true, reply });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -824,6 +838,9 @@ app.get('/run/:slug', requireApiKey, async (req, res) => {
   if (!prompt) return res.status(400).json({ error: 'prompt query required' });
   try {
     const reply = await runProfileBySlug(slug, prompt);
+    const profiles = await loadProfiles();
+    const profile = profiles.find(p => p.slug === slug);
+    saveLastResponse(reply, profile?.name || slug, prompt);
     res.json({ ok: true, reply });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -842,6 +859,7 @@ app.post('/ask', requireApiKey, async (req, res) => {
   if (isRunning) return res.status(409).json({ error: 'Bot is busy' });
   try {
     const reply = await runProfile(profile, message);
+    saveLastResponse(reply, profile, message);
     res.json({ reply });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -852,6 +870,36 @@ app.get('/status', (req, res) => {
     url: page ? page.url() : null,
     browserConnected: !!(browser && browser.isConnected())
   });
+});
+
+// Get Last Response
+app.get('/last-response', (req, res) => {
+  res.json(lastResponse);
+});
+
+// Download Last Response as File
+app.get('/download-response', (req, res) => {
+  const { format = 'txt' } = req.query;
+  const timestamp = lastResponse.timestamp ? new Date(lastResponse.timestamp).toLocaleString() : 'N/A';
+  let content, mimeType, filename;
+
+  if (format === 'json') {
+    content = JSON.stringify(lastResponse, null, 2);
+    mimeType = 'application/json';
+    filename = `response_${Date.now()}.json`;
+  } else if (format === 'csv') {
+    content = `Profile,Prompt,Response,Timestamp\n"${lastResponse.profileName}","${lastResponse.prompt}","${lastResponse.text}","${timestamp}"`;
+    mimeType = 'text/csv';
+    filename = `response_${Date.now()}.csv`;
+  } else {
+    content = `Profile: ${lastResponse.profileName}\nPrompt: ${lastResponse.prompt}\nResponse: ${lastResponse.text}\nTimestamp: ${timestamp}`;
+    mimeType = 'text/plain';
+    filename = `response_${Date.now()}.txt`;
+  }
+
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(content);
 });
 
 app.get('/endpoints', requireApiKey, async (req, res) => {
