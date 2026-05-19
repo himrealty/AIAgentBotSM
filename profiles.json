@@ -6,7 +6,16 @@
       { "id": 1, "action": "click", "x": 443, "y": 558, "label": "Click textarea" },
       { "id": 2, "action": "type", "text": "{{prompt}}", "delay": 30, "label": "Type prompt" },
       { "id": 3, "action": "wait", "ms": 1000, "label": "Wait" },
-      { "id": 4, "action": "send", "text": "", "delay": 30, "label": "Send message (Enter)" }
+      { "id": 4, "action": "send", "text": "", "delay": 30, "label": "Send message (Enter)" },
+      { "id": 5, "action": "wait", "ms": 3000, "label": "Wait for response start" },
+      { 
+        "id": 6, 
+        "action": "copy", 
+        "selector": "div.ds-assistant-message-main-content, [class*='assistant']:last-child", 
+        "polling": true,
+        "waitMs": 800,
+        "label": "Extract DeepSeek response" 
+      }
     ]
   },
   {
@@ -17,8 +26,15 @@
       { "id": 2, "action": "type", "text": "{{prompt}}", "delay": 30, "label": "Type prompt" },
       { "id": 3, "action": "wait", "ms": 400, "label": "Pause" },
       { "id": 4, "action": "send", "text": "", "delay": 30, "label": "Send via Enter" },
-      { "id": 5, "action": "wait", "ms": 5000, "label": "Wait for response" },
-      { "id": 6, "action": "copy", "selector": ".message:last-child, [class*='response']", "polling": true, "label": "Extract streamed response" }
+      { "id": 5, "action": "wait", "ms": 2000, "label": "Wait for streaming start" },
+      { 
+        "id": 6, 
+        "action": "copy", 
+        "selector": "div.qwen-markdown, [data-role='assistant']:last-child", 
+        "polling": true,
+        "waitMs": 600,
+        "label": "Extract Qwen response" 
+      }
     ]
   }
 ]
