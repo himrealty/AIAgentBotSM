@@ -608,61 +608,83 @@ async function setAppUiElement(page, selector, value, isSelect = false) {
   await page.waitForTimeout(100);
 }
 
+const PROVIDER_BASE_URLS = {
+  deepseek: 'https://chat.deepseek.com',
+  qwen: 'https://chat.qwen.ai',
+  chatgpt: 'https://chatgpt.com',
+  claude: 'https://claude.ai',
+  gemini: 'https://gemini.google.com',
+  google: 'https://accounts.google.com'
+};
+
+async function navigateToProviderBaseUrl(provider) {
+  const baseUrl = PROVIDER_BASE_URLS[provider];
+  if (!baseUrl) return;
+  const targetHost = new URL(baseUrl).hostname;
+  let currentUrl = '';
+  try { currentUrl = await page.url(); } catch (_) {}
+  if (!currentUrl.includes(targetHost)) {
+    log(`Navigating to provider base URL for ${provider}: ${baseUrl}`);
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(2000);
+  }
+}
+
+async function executeProviderScript(provider, command, context) {
+  const commandPath = path.join(__dirname, 'providers', provider, `${command}.js`);
+  if (!fs.existsSync(commandPath)) {
+    throw new Error(`Command script not found: ${commandPath}`);
+  }
+
+  const scriptContent = fs.readFileSync(commandPath, 'utf8');
+  await ensurePage();
+  await navigateToProviderBaseUrl(provider);
+
+  try {
+    return await page.evaluate(new Function('context', `return (${scriptContent})(context);`), context);
+  } catch (err) {
+    const message = String(err.message || '').toLowerCase();
+    if (message.includes('execution context was destroyed') || message.includes('cannot find context with specified id')) {
+      log(`⚠️ Provider script ${provider}/${command} triggered navigation and lost execution context; retrying`);
+      await ensurePage();
+      await navigateToProviderBaseUrl(provider);
+      return await page.evaluate(new Function('context', `return (${scriptContent})(context);`), context);
+    }
+    throw err;
+  }
+}
+
 async function runJsThroughAppUI({ runMode, script, provider, command, prompt, credentials = {}, chatIndex, imageSize, videoSize, code }) {
-  await openAppUiPage();
-  await setAppUiElement(page, '#builderWorkflowMode', 'js', true);
-  await page.waitForTimeout(200);
-  const sourceMode = runMode === 'custom' ? 'custom' : 'provider';
-  await setAppUiElement(page, '#builderScriptSource', sourceMode, true);
-  await page.waitForTimeout(200);
+  await ensurePage();
 
-  if (sourceMode === 'custom') {
-    await setAppUiElement(page, '#builderScript', script || '');
+  const context = {
+    prompt,
+    message: prompt || '',
+    provider,
+    command,
+    chatIndex,
+    imageSize,
+    videoSize,
+    code,
+    email: credentials.email || '',
+    password: credentials.password || '',
+    apiKey: credentials.apiKey || '',
+    credentials
+  };
+
+  if (runMode === 'custom') {
+    if (!script) throw new Error('No custom script provided');
+    return await page.evaluate(new Function('context', `return (${script})(context);`), context);
   }
 
-  // Set provider and command in builder UI
-  if (provider) {
-    await setAppUiElement(page, '#builderProvider', provider, true);
-    await page.waitForTimeout(500);
+  if (runMode === 'provider') {
+    if (!provider || !command) {
+      throw new Error('Provider and command are required for provider runMode');
+    }
+    return await executeProviderScript(provider, command, context);
   }
 
-  if (command) {
-    await setAppUiElement(page, '#builderCommand', command, true);
-    await page.waitForTimeout(200);
-  }
-
-  if (prompt !== undefined) {
-    await setAppUiElement(page, '#builderPromptInput', prompt || '');
-  }
-
-  if (credentials.email) await setAppUiElement(page, '#providerEmail', credentials.email);
-  if (credentials.password) await setAppUiElement(page, '#providerPassword', credentials.password);
-  if (credentials.apiKey) await setAppUiElement(page, '#providerApiKey', credentials.apiKey);
-  if (chatIndex !== undefined) await setAppUiElement(page, '#builderChatIndex', String(chatIndex));
-  if (imageSize) await setAppUiElement(page, '#builderMediaSize', imageSize, true);
-  if (videoSize) await setAppUiElement(page, '#builderMediaSize', videoSize, true);
-  if (code) await setAppUiElement(page, '#builderGoogle2FACode', code);
-
-  // Click execute - this will open provider tab automatically
-  await page.waitForSelector('#builderExecuteJsBtn', { visible: true, timeout: 10000 });
-  await page.click('#builderExecuteJsBtn');
-  log('▶ Clicked builder UI execute button');
-
-  // Wait for output in builder tab (script runs in new tab opened by UI)
-  await page.waitForFunction(() => {
-    const box = document.getElementById('builderResponseBox');
-    if (!box) return false;
-    const text = box.innerText.trim();
-    return text && !text.includes('Builder output will appear here');
-  }, { timeout: 60000 });
-
-  const uiOutput = await page.evaluate(() => {
-    const box = document.getElementById('builderResponseBox');
-    return box ? box.innerText.trim() : '';
-  });
-
-  log(`✅ Builder UI output captured (${uiOutput ? uiOutput.length : 0} chars)`);
-  return uiOutput;
+  throw new Error(`Unknown runMode: ${runMode}`);
 }
 
 async function captureLastChatText(page) {
@@ -1704,31 +1726,22 @@ async function executeProviderCommand(provider, command, context) {
     throw new Error(`Command script not found: ${commandPath}`);
   }
   
-  const scriptContent = fs.readFileSync(commandPath, 'utf8');
-  
   try {
-    // Execute through the Builder UI to match user interaction
-    log(`▶ Executing provider command through UI: ${provider}/${command}`);
-    
-    const uiResult = await runJsThroughAppUI({
-      runMode: 'provider',
-      script: '',
-      provider: provider,
-      command: command,
+    log(`▶ Executing provider command directly: ${provider}/${command}`);
+    const result = await executeProviderScript(provider, command, {
       prompt: context.prompt || context.message || '',
-      credentials: {
-        email: context.email || context.credentials?.email || '',
-        password: context.password || context.credentials?.password || '',
-        apiKey: context.apiKey || context.credentials?.apiKey || ''
-      },
+      message: context.prompt || context.message || '',
+      email: context.email || context.credentials?.email || '',
+      password: context.password || context.credentials?.password || '',
+      apiKey: context.apiKey || context.credentials?.apiKey || '',
+      credentials: context.credentials || {},
       chatIndex: context.chatIndex,
       imageSize: context.imageSize,
       videoSize: context.videoSize,
       code: context.code
     });
-    
-    log(`✅ Command ${command} executed for ${provider} through UI`);
-    return uiResult;
+    log(`✅ Command ${command} executed for ${provider}`);
+    return result;
   } catch (err) {
     log(`❌ Command ${command} failed: ${err.message}`, 'error');
     throw err;
