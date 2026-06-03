@@ -519,7 +519,8 @@ async function ensurePage() {
   await page.setUserAgent(UA);
   await page.evaluateOnNewDocument(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });\n    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
     Object.defineProperty(navigator, 'permissions', { value: { query: () => Promise.resolve({ state: 1 }) } });
     Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
     Object.defineProperty(navigator, 'connection', { get: () => ({ downlink: 10, effectiveType: '4g', rtt: 50 }) });
