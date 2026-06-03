@@ -928,6 +928,7 @@ function updateWorkflowModeUI() {
   const providerRow = document.getElementById('providerRow');
   const commandRow = document.getElementById('commandRow');
   const scriptRow = document.getElementById('scriptRow');
+  const credentialsRow = document.getElementById('credentialsRow');
   const stepsHeader = document.getElementById('stepsHeader');
   const stepsList = document.getElementById('stepsList');
   
@@ -936,6 +937,9 @@ function updateWorkflowModeUI() {
     if (providerRow) providerRow.style.display = 'flex';
     if (commandRow) commandRow.style.display = 'flex';
     if (scriptRow) scriptRow.style.display = 'flex';
+    // Show credentials row when a provider is selected
+    const selectedProvider = document.getElementById('builderProvider')?.value;
+    if (credentialsRow) credentialsRow.style.display = selectedProvider ? 'flex' : 'none';
     if (stepsHeader) stepsHeader.style.display = 'none';
     if (stepsList) stepsList.style.display = 'none';
   } else {
@@ -943,6 +947,7 @@ function updateWorkflowModeUI() {
     if (providerRow) providerRow.style.display = 'none';
     if (commandRow) commandRow.style.display = 'none';
     if (scriptRow) scriptRow.style.display = 'none';
+    if (credentialsRow) credentialsRow.style.display = 'none';
     if (stepsHeader) stepsHeader.style.display = 'flex';
     if (stepsList) stepsList.style.display = 'block';
   }
@@ -950,14 +955,16 @@ function updateWorkflowModeUI() {
 
 function updateCommandOptions(provider) {
   const commandSelect = document.getElementById('builderCommand');
+  const credentialsRow = document.getElementById('credentialsRow');
   if (!commandSelect || !provider) {
     if (commandSelect) commandSelect.innerHTML = '<option value="">-- Select Command --</option>';
+    if (credentialsRow) credentialsRow.style.display = 'none';
     return;
   }
   
   // Load available commands for this provider
   const commands = {
-    deepseek: ['newchat', 'gotochat', 'getchats', 'prompt'],
+    deepseek: ['newchat', 'gotochat', 'getchats', 'prompt', 'login'],
     qwen: ['newchat', 'gotochat', 'getchats', 'prompt', 'qwenimage', 'qwenvideo'],
     chatgpt: ['newchat', 'gotochat', 'getchats', 'prompt'],
     claude: ['newchat', 'gotochat', 'getchats', 'promptui'],
@@ -967,4 +974,60 @@ function updateCommandOptions(provider) {
   const cmds = commands[provider] || [];
   commandSelect.innerHTML = '<option value="">-- Select Command --</option>' + 
     cmds.map(c => `<option value="${c}">${c}</option>`).join('');
+  
+  // Show credentials row for providers that support login
+  const providersWithLogin = ['deepseek'];
+  if (credentialsRow) {
+    credentialsRow.style.display = providersWithLogin.includes(provider) ? 'flex' : 'none';
+  }
+  
+  // Load saved credentials for this provider
+  loadProviderCredentials(provider);
+}
+
+// Provider Credentials Functions
+async function saveProviderCredentials() {
+  const provider = document.getElementById('builderProvider').value;
+  if (!provider) {
+    alert('Please select a provider first');
+    return;
+  }
+  
+  const email = document.getElementById('providerEmail').value;
+  const password = document.getElementById('providerPassword').value;
+  const apiKey = document.getElementById('providerApiKey').value;
+  
+  try {
+    const response = await fetch('/provider-credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider, email, password, apiKey })
+    });
+    
+    const result = await response.json();
+    if (result.ok) {
+      alert(`✅ Credentials saved for ${provider}`);
+      document.getElementById('providerPassword').value = '';
+    } else {
+      alert(`❌ Error: ${result.error}`);
+    }
+  } catch (e) {
+    alert(`❌ Failed to save credentials: ${e.message}`);
+  }
+}
+
+async function loadProviderCredentials(provider) {
+  if (!provider) return;
+  
+  try {
+    const response = await fetch(`/provider-credentials/${provider}`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.email) document.getElementById('providerEmail').value = data.email;
+      if (data.api_key) document.getElementById('providerApiKey').value = data.api_key;
+      // Never populate password field for security
+    }
+  } catch (e) {
+    console.log('Could not load provider credentials:', e.message);
+  }
 }

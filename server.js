@@ -23,12 +23,14 @@ async function initDatabase() {
   if (!USE_POSTGRES) return;
   
   try {
+    // Faster connection with lazy initialization
     dbClient = new Pool({ 
       connectionString: DATABASE_URL, 
       ssl: { rejectUnauthorized: false },
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000
+      connectionTimeoutMillis: 5000,  // Faster timeout
+      allowExitOnIdle: true
     });
     
     // Test connection first
@@ -65,6 +67,16 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS data_store (
         key text PRIMARY KEY,
         value jsonb NOT NULL,
+        metadata jsonb DEFAULT '{}',
+        created_at timestamptz DEFAULT now(),
+        updated_at timestamptz DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS provider_credentials (
+        id serial PRIMARY KEY,
+        provider text NOT NULL UNIQUE,
+        email text,
+        password text,
+        api_key text,
         metadata jsonb DEFAULT '{}',
         created_at timestamptz DEFAULT now(),
         updated_at timestamptz DEFAULT now()
@@ -1207,6 +1219,103 @@ app.get('/data/list', requireApiKey, async (req, res) => {
       }
     }
     res.json({ keys });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Provider Credentials API
+app.post('/provider-credentials', requireApiKey, async (req, res) => {
+  try {
+    const { provider, email, password, apiKey, metadata } = req.body;
+    if (!provider) return res.status(400).json({ error: 'Provider is required' });
+    
+    if (USE_POSTGRES && dbClient) {
+      await dbClient.query(
+        `INSERT INTO provider_credentials (provider, email, password, api_key, metadata, updated_at)
+         VALUES ($1, $2, $3, $4, $5, now())
+         ON CONFLICT (provider) DO UPDATE 
+         SET email = EXCLUDED.email, password = EXCLUDED.password, api_key = EXCLUDED.api_key, 
+             metadata = EXCLUDED.metadata, updated_at = now()`,
+        [provider, email || null, password || null, apiKey || null, JSON.stringify(metadata || {})]
+      );
+      log(`💾 Provider credentials saved for ${provider}`);
+    } else {
+      // Fallback to file storage
+      const credsFile = path.join(__dirname, 'provider_credentials.json');
+      let creds = {};
+      if (fs.existsSync(credsFile)) {
+        creds = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+      }
+      creds[provider] = { email, password, apiKey, metadata, updatedAt: new Date().toISOString() };
+      fs.writeFileSync(credsFile, JSON.stringify(creds, null, 2));
+      log(`💾 Provider credentials saved (file) for ${provider}`);
+    }
+    res.json({ ok: true, provider });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/provider-credentials/:provider', requireApiKey, async (req, res) => {
+  try {
+    const { provider } = req.params;
+    let result = null;
+    
+    if (USE_POSTGRES && dbClient) {
+      const queryResult = await dbClient.query(
+        'SELECT provider, email, api_key, metadata, created_at, updated_at FROM provider_credentials WHERE provider = $1',
+        [provider]
+      );
+      if (queryResult.rows[0]) {
+        result = {
+          ...queryResult.rows[0],
+          password: null // Never expose password
+        };
+      }
+    } else {
+      const credsFile = path.join(__dirname, 'provider_credentials.json');
+      if (fs.existsSync(credsFile)) {
+        const creds = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        if (creds[provider]) {
+          result = { provider, ...creds[provider], password: null };
+        }
+      }
+    }
+    
+    if (result) {
+      res.json(result);
+    } else {
+      res.status(404).json({ error: 'Provider credentials not found' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/provider-credentials', requireApiKey, async (req, res) => {
+  try {
+    let providers = [];
+    if (USE_POSTGRES && dbClient) {
+      const result = await dbClient.query(
+        'SELECT provider, email, api_key, metadata, created_at, updated_at FROM provider_credentials ORDER BY provider'
+      );
+      providers = result.rows.map(row => ({ ...row, password: null }));
+    } else {
+      const credsFile = path.join(__dirname, 'provider_credentials.json');
+      if (fs.existsSync(credsFile)) {
+        const creds = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        providers = Object.keys(creds).map(provider => ({
+          provider,
+          email: creds[provider].email,
+          apiKey: creds[provider].apiKey,
+          metadata: creds[provider].metadata,
+          updatedAt: creds[provider].updatedAt,
+          password: null
+        }));
+      }
+    }
+    res.json({ providers });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
