@@ -80,7 +80,9 @@ function setupClickOverlay() {
   overlay.addEventListener('click', e => {
     const { bx, by, px, py } = getBrowserCoords(e);
     if (builderMode) {
-      addBuilderStep(bx, by, px, py);
+      if (builderWorkflowMode === 'touch') {
+        addBuilderStep(bx, by, px, py);
+      }
     } else {
       sendClick(bx, by, px, py);
     }
@@ -446,6 +448,7 @@ async function executeJSScriptFromBuilder() {
   const provider = document.getElementById('builderProvider').value;
   const command = document.getElementById('builderCommand').value;
   const scriptSource = document.getElementById('builderScriptSource')?.value || builderScriptSource;
+  const prompt = document.getElementById('builderPromptInput').value.trim();
   const email = document.getElementById('providerEmail').value.trim();
   const password = document.getElementById('providerPassword').value.trim();
   const apiKey = document.getElementById('providerApiKey').value.trim();
@@ -469,23 +472,13 @@ async function executeJSScriptFromBuilder() {
   setRunning(true);
   
   try {
-    const context = {
-      provider: provider || '',
-      command: command || '',
-      credentials: {
-        email: email || '',
-        password: password || '',
-        apiKey: apiKey || ''
-      }
-    };
-    
     const r = await fetch('/execute-js-direct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         runMode: scriptSource,
         script: scriptSource === 'custom' ? script : '',
-        context: { provider, command, prompt: '', credentials: { email, password, apiKey } }
+        context: { provider, command, prompt: prompt || '', credentials: { email, password, apiKey } }
       })
     });
     
@@ -493,11 +486,10 @@ async function executeJSScriptFromBuilder() {
     if (!r.ok) throw new Error(data.error || 'Failed');
     
     addLog('✅ Script executed successfully', 'success');
-    if (data.result) {
-      document.getElementById('responseBox').textContent = JSON.stringify(data.result, null, 2);
-    }
+    setBuilderResponse(data.result ? JSON.stringify(data.result, null, 2) : 'No result returned');
   } catch (e) {
     addLog('Error: ' + e.message, 'error');
+    setBuilderResponse('Error: ' + e.message);
   } finally {
     setRunning(false);
   }
@@ -585,6 +577,42 @@ async function copyResponse() {
   } catch (e) {
     addLog('Copy failed: ' + (e && e.message ? e.message : e), 'error');
   }
+}
+
+async function copyBuilderResponse() {
+  const text = document.getElementById('builderResponseBox')?.textContent || '';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      addLog('Builder output copied', 'info');
+      return;
+    } catch (e) {
+      addLog('Clipboard API failed: ' + (e && e.message ? e.message : e), 'warn');
+    }
+  }
+
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (ok) addLog('Builder output copied (fallback)', 'info');
+    else addLog('Copy failed', 'error');
+  } catch (e) {
+    addLog('Copy failed: ' + (e && e.message ? e.message : e), 'error');
+  }
+}
+
+function setBuilderResponse(text) {
+  const box = document.getElementById('builderResponseBox');
+  if (!box) return;
+  box.textContent = text;
+  box.scrollTop = box.scrollHeight;
 }
 
 // ── BUILDER ───────────────────────────────────────────────
@@ -786,7 +814,7 @@ function getStepSummary(step) {
 function renderBuilderMarkers() {
   const container = document.getElementById('builderMarkers');
   container.innerHTML = '';
-  if (!builderMode) return;
+  if (!builderMode || builderWorkflowMode === 'js') return;
   const img = document.getElementById('liveFrame');
   const rect = img.getBoundingClientRect();
   const parentRect = img.parentElement.getBoundingClientRect();
@@ -1077,6 +1105,8 @@ function updateWorkflowModeUI() {
     if (touchModeBtns) touchModeBtns.style.display = 'none';
     if (jsModeBtns) jsModeBtns.style.display = 'flex';
     if (builderExecuteJsBtn) builderExecuteJsBtn.style.display = 'inline-block';
+    if (document.getElementById('builderPromptGroup')) document.getElementById('builderPromptGroup').style.display = 'block';
+    if (document.getElementById('builderResponseGroup')) document.getElementById('builderResponseGroup').style.display = 'block';
 
     updateScriptSourceUI();
     const selectedProvider = document.getElementById('builderProvider')?.value;
@@ -1088,6 +1118,8 @@ function updateWorkflowModeUI() {
     if (scriptSourceRow) scriptSourceRow.style.display = 'none';
     if (scriptRow) scriptRow.style.display = 'none';
     if (credentialsRow) credentialsRow.style.display = 'none';
+    if (document.getElementById('builderPromptGroup')) document.getElementById('builderPromptGroup').style.display = 'none';
+    if (document.getElementById('builderResponseGroup')) document.getElementById('builderResponseGroup').style.display = 'none';
     if (stepsHeader) stepsHeader.style.display = 'flex';
     if (stepsList) stepsList.style.display = 'block';
     // Show Touch buttons, hide JS button

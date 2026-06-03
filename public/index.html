@@ -267,6 +267,17 @@
             <button class="btn-sm" onclick="saveProviderCredentials()">💾 Save Credentials</button>
           </div>
         </div>
+        <div class="field-group" id="builderPromptGroup" style="display:none;">
+          <label>Builder Prompt</label>
+          <textarea id="builderPromptInput" rows="3" placeholder="Enter prompt for JS execution..." style="width:100%;"></textarea>
+        </div>
+        <div class="field-group" id="builderResponseGroup" style="display:none;">
+          <label>Builder Output</label>
+          <div class="response-box" id="builderResponseBox" style="min-height:80px; max-height:150px; overflow:auto; white-space:pre-wrap;">
+            <em>Builder output will appear here...</em>
+          </div>
+          <button class="btn-sm" onclick="copyBuilderResponse()" style="margin-top:6px">📋 Copy Builder Output</button>
+        </div>
         <div class="btn-row">
           <button class="btn-primary" onclick="saveBuilderProfile()">💾 Save Profile</button>
           <button class="btn-sm" onclick="loadBuilderProfile()">📂 Load</button>

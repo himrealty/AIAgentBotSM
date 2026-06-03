@@ -483,7 +483,62 @@ GET /run/:slug?prompt=...
 
 ---
 
-### 19. Stop Current Execution
+### 19. Execute Direct JS
+```
+POST /execute-js-direct
+```
+**Authentication**: ✅ Required
+
+**Body** (provider mode):
+```json
+{
+  "runMode": "provider",
+  "script": "",
+  "context": {
+    "provider": "deepseek",
+    "command": "prompt",
+    "prompt": "Hello from direct JS mode",
+    "credentials": {
+      "email": "user@example.com",
+      "password": "secret",
+      "apiKey": ""
+    }
+  }
+}
+```
+
+**Body** (custom JS mode):
+```json
+{
+  "runMode": "custom",
+  "script": "async function run(context) { return { success: true, prompt: context.prompt }; }",
+  "context": {
+    "prompt": "Hello from custom JS mode",
+    "credentials": {
+      "email": "",
+      "password": "",
+      "apiKey": ""
+    }
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "ok": true,
+  "result": { ... }
+}
+```
+
+**Notes**:
+- `runMode` must be `provider` or `custom`
+- `prompt` is available in `context.prompt`
+- `provider` and `command` are required for provider-based execution
+
+---
+
+### 20. Stop Current Execution
 ```
 POST /stop
 ```
@@ -500,7 +555,7 @@ POST /stop
 
 ---
 
-### 20. Ask Bot Question
+### 21. Ask Bot Question
 ```
 POST /ask
 ```
@@ -525,7 +580,7 @@ POST /ask
 
 ## 📊 System Endpoints
 
-### 21. Server Status
+### 22. Server Status
 ```
 GET /status
 ```
