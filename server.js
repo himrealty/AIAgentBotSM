@@ -490,20 +490,9 @@ async function ensureBrowser() {
     executablePath: exePath,
     headless: HEADLESS,
     args: [
-      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-      '--disable-gpu', '--disable-background-networking',
-      '--disable-sync', '--no-first-run', '--no-default-browser-check',
-      '--disable-background-timer-throttling',
-      '--disable-renderer-backgrounding',
-      '--disable-features=site-per-process,TranslateUI',
-      '--disable-software-rasterizer',
-      '--disable-extensions-except=chrome-extension://mmeijimgabbpbgpdklnllpncmdofmgpo',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-web-resources',
-      '--disable-client-side-phishing-detection'
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'
     ],
     defaultViewport: VIEWPORT,
-    ignoreDefaultArgs: ['--enable-automation', '--disable-extensions'],
     pipe: true,
     timeout: 60000
   });
@@ -516,35 +505,6 @@ async function ensurePage() {
   const pages = await browser.pages();
   page = pages.length > 0 ? pages[0] : await browser.newPage();
   await page.setViewport(VIEWPORT);
-  await page.setUserAgent(UA);
-  await page.evaluateOnNewDocument(() => {
-    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
-    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-    Object.defineProperty(navigator, 'permissions', { value: { query: () => Promise.resolve({ state: 1 }) } });
-    Object.defineProperty(navigator, 'vendor', { get: () => 'Google Inc.' });
-    Object.defineProperty(navigator, 'connection', { get: () => ({ downlink: 10, effectiveType: '4g', rtt: 50 }) });
-    window.chrome = { runtime: {} };
-    window.navigator.vendor = 'Google Inc.';
-    delete window.__HEADLESS__;
-    delete window.__puppet__;
-  });
-  
-  // Add realistic request headers
-  await page.setExtraHTTPHeaders({
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="138", "Google Chrome";v="138"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Linux"',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1'
-  });
-  
   installAnalyticsInterceptor(page);
   return page;
 }
