@@ -1626,29 +1626,25 @@ async function executeProviderCommand(provider, command, context) {
   
   try {
     // Execute the script in the browser context
-    // The script should be an IIFE or async function that receives context
+    // The script may be a self-invoking IIFE that expects a `context` argument.
     const result = await page.evaluate(async (scriptCode, ctx) => {
       try {
-        // Try to evaluate and execute the script
-        // If it's an IIFE like (async (ctx) => {...})(), eval will execute it
-        // If it's just a function definition, we need to call it
-        const result = eval(scriptCode);
+        const normalizedScript = scriptCode.trim().replace(/\)\(\);?\s*$/, '})(ctx);');
+        const evalResult = eval(normalizedScript);
         
-        // If result is a promise, await it
-        if (result && typeof result.then === 'function') {
-          return await result;
+        if (evalResult && typeof evalResult.then === 'function') {
+          return await evalResult;
         }
         
-        // If result is a function, call it with context
-        if (typeof result === 'function') {
-          const fnResult = result(ctx);
+        if (typeof evalResult === 'function') {
+          const fnResult = evalResult(ctx);
           if (fnResult && typeof fnResult.then === 'function') {
             return await fnResult;
           }
           return fnResult;
         }
         
-        return result;
+        return evalResult;
       } catch (evalErr) {
         throw new Error(`Script execution error: ${evalErr.message}`);
       }
