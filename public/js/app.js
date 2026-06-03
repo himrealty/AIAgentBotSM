@@ -77,7 +77,12 @@ async function updateUrl() {
 // ── CLICK OVERLAY ─────────────────────────────────────────
 function setupClickOverlay() {
   const overlay = document.getElementById('clickOverlay');
-  overlay.addEventListener('click', e => {
+  let touchHandled = false;
+
+  const handleBrowserClick = (e) => {
+    if (e.defaultPrevented) return;
+    e.preventDefault();
+    e.stopPropagation();
     const { bx, by, px, py } = getBrowserCoords(e);
     if (builderMode) {
       if (builderWorkflowMode === 'touch') {
@@ -86,6 +91,19 @@ function setupClickOverlay() {
     } else {
       sendClick(bx, by, px, py);
     }
+  };
+
+  overlay.addEventListener('pointerdown', e => {
+    if (e.pointerType === 'touch' || e.pointerType === 'pen') {
+      touchHandled = true;
+      handleBrowserClick(e);
+      window.setTimeout(() => { touchHandled = false; }, 500);
+    }
+  });
+
+  overlay.addEventListener('click', e => {
+    if (touchHandled) return;
+    handleBrowserClick(e);
   });
 }
 
@@ -539,8 +557,9 @@ async function runBuilderTouchWorkflow() {
     return;
   }
   
-  if (!url) {
-    addLog('Please enter a URL to navigate to', 'error');
+  const requiresNavigation = steps.some(step => ['navigate', 'goto'].includes(step.action));
+  if (!url && requiresNavigation) {
+    addLog('Please enter a URL to navigate to before running a navigate/goto step, or remove that step to run on the current page', 'error');
     return;
   }
   
@@ -548,14 +567,18 @@ async function runBuilderTouchWorkflow() {
   setRunning(true);
   
   try {
-    // Navigate to URL first
-    await fetch('/browser/navigate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    
-    addLog(`✅ Navigated to ${url}`, 'success');
+    if (url) {
+      // Navigate to URL first
+      await fetch('/browser/navigate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      
+      addLog(`✅ Navigated to ${url}`, 'success');
+    } else {
+      addLog('⏩ No URL provided; running steps against current browser page', 'info');
+    }
     
     // Execute all steps
     for (let i = 0; i < steps.length; i++) {
