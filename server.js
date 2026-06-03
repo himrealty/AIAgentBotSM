@@ -886,6 +886,11 @@ async function executeStep(step, context) {
           await new Promise(r => setTimeout(r, 1500));
         }
 
+        if (!text.trim()) {
+          log(`Fallback to generic chat capture for copy step${label}`);
+          text = await captureLastChatText(p);
+        }
+
         text = text
           .replace(/【.*?】/g, '')
           .replace(/\[citation:\d+\]/g, '')
@@ -913,6 +918,12 @@ async function executeStep(step, context) {
             return el ? (el.innerText || el.textContent || '') : '';
           }, Number(step.x || 640), Number(step.y || 360));
         }
+
+        if (!text.trim()) {
+          log(`Fallback to generic chat capture for read step${label}`);
+          text = await captureLastChatText(p);
+        }
+
         text = normalizeExtractedText(text, context);
         context.result = text;
         log(`Read ${text.length} chars`);

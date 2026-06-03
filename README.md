@@ -52,9 +52,17 @@ curl "http://localhost:3000/run/my-touch-profile?prompt=Hello" \
 
 ## JS mode execution
 
-JS mode can execute either a saved provider script, custom JavaScript, or a UI-driven builder workflow.
+JS mode uses the JS engine and provider scripts instead of touch-based browser interactions.
 
-### Provider script execution
+### Main JS execution endpoints
+
+- `POST /execute-js-direct` — execute a one-off custom JS script or provider command via API
+- `POST /execute-js-ui` — execute JS through the app builder UI flow
+- `POST /execute-js` — execute a saved JS profile by name
+
+> Use `/execute-js-direct` for external JS-based execution from other services or scripts. This route is implemented in `server.js` and dispatches through the same JS action runtime used by the app.
+
+### Direct provider execution via API
 
 Use `POST /execute-js-direct` with `runMode: "provider"`.
 
@@ -64,7 +72,6 @@ curl -X POST "http://localhost:3000/execute-js-direct" \
   -H "x-api-key: $API_KEY" \
   -d '{
     "runMode": "provider",
-    "script": "",
     "context": {
       "provider": "deepseek",
       "command": "prompt",
@@ -78,7 +85,7 @@ curl -X POST "http://localhost:3000/execute-js-direct" \
   }'
 ```
 
-### Custom JS execution
+### Direct custom JS execution via API
 
 Use `POST /execute-js-direct` with `runMode: "custom"`.
 
@@ -96,9 +103,23 @@ curl -X POST "http://localhost:3000/execute-js-direct" \
   }'
 ```
 
-### UI-driven JS execution (remote control of the app builder)
+### Saved JS profile execution
 
-Use `POST /execute-js-ui` to have the server open the local app UI, select the provider and action dropdowns, click the execute button, and return the builder output.
+Use `POST /execute-js` with a profile name to run a saved JS profile.
+
+```bash
+curl -X POST "http://localhost:3000/execute-js" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
+  -d '{
+    "profile": "My JS Profile",
+    "prompt": "Hello from saved JS profile"
+  }'
+```
+
+### UI-driven JS execution
+
+Use `POST /execute-js-ui` to execute JS through the app builder UI flow.
 
 ```bash
 curl -X POST "http://localhost:3000/execute-js-ui" \
@@ -119,29 +140,13 @@ curl -X POST "http://localhost:3000/execute-js-ui" \
   }'
 ```
 
-You can also force UI-driven execution via `POST /execute-js-direct` or `POST /execute-js` by including `"useUi": true` in the request body.
-
-```bash
-curl -X POST "http://localhost:3000/execute-js-direct" \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: $API_KEY" \
-  -d '{
-    "runMode": "custom",
-    "useUi": true,
-    "script": "async function run(context) { return { result: context.prompt }; }",
-    "context": {
-      "prompt": "Hello via UI",
-      "credentials": {"email":"","password":"","apiKey":""}
-    }
-  }'
-```
-
 ### Notes
 
 - `runMode` must be `provider` or `custom`
 - `provider` and `command` are required when `runMode` is `provider`
 - `prompt` is optional and is available in `context.prompt`
-- UI-driven execution will capture the app builder output box and return that response
+- `POST /execute-js-direct` and `POST /execute-js-ui` both route through the internal JS execution path
+- `POST /execute-js` runs saved profiles with `workflowMode: js`
 
 ## Google provider support
 
