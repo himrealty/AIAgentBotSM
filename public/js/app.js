@@ -403,6 +403,42 @@ async function runAutomation() {
   }
 }
 
+// Execute JS Script from UI (JS Mode only)
+async function executeJSScript() {
+  const profileName = document.getElementById('profileSelect').value;
+  const prompt = document.getElementById('promptInput').value.trim();
+  
+  // Get the selected profile
+  const profile = profiles.find(p => p.name === profileName);
+  if (!profile) { addLog('Profile not found', 'error'); return; }
+  
+  if (profile.workflowMode !== 'js') {
+    addLog('Switch to JS mode to use Execute JS button', 'warn');
+    return;
+  }
+  
+  addLog(`⚡ Execute JS for "${profileName}"`, 'info');
+  setRunning(true);
+  try {
+    const r = await fetch('/execute-js', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: profileName, prompt: prompt || '' })
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed');
+    
+    addLog('✅ Script executed successfully', 'success');
+    if (data.result) {
+      document.getElementById('responseBox').textContent = JSON.stringify(data.result, null, 2);
+    }
+  } catch (e) {
+    addLog('Error: ' + e.message, 'error');
+  } finally {
+    setRunning(false);
+  }
+}
+
 // Check if the workflow requires a prompt based on mode and steps
 function shouldRequirePrompt(profile) {
   if (!profile) return true;
@@ -931,6 +967,8 @@ function updateWorkflowModeUI() {
   const credentialsRow = document.getElementById('credentialsRow');
   const stepsHeader = document.getElementById('stepsHeader');
   const stepsList = document.getElementById('stepsList');
+  const touchModeBtns = document.getElementById('touchModeBtns');
+  const jsModeBtns = document.getElementById('jsModeBtns');
   
   if (builderWorkflowMode === 'js') {
     // JS Mode: show script editor, hide steps
@@ -942,6 +980,9 @@ function updateWorkflowModeUI() {
     if (credentialsRow) credentialsRow.style.display = selectedProvider ? 'flex' : 'none';
     if (stepsHeader) stepsHeader.style.display = 'none';
     if (stepsList) stepsList.style.display = 'none';
+    // Show JS button, hide Touch buttons
+    if (touchModeBtns) touchModeBtns.style.display = 'none';
+    if (jsModeBtns) jsModeBtns.style.display = 'flex';
   } else {
     // Touch Mode: show steps, hide script/provider
     if (providerRow) providerRow.style.display = 'none';
@@ -950,6 +991,9 @@ function updateWorkflowModeUI() {
     if (credentialsRow) credentialsRow.style.display = 'none';
     if (stepsHeader) stepsHeader.style.display = 'flex';
     if (stepsList) stepsList.style.display = 'block';
+    // Show Touch buttons, hide JS button
+    if (touchModeBtns) touchModeBtns.style.display = 'flex';
+    if (jsModeBtns) jsModeBtns.style.display = 'none';
   }
 }
 

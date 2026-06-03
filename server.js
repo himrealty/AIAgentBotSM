@@ -768,6 +768,25 @@ async function runProfile(profileName, prompt) {
     log(`▶ Starting: ${profileName} [${profile.workflowMode || 'js'} mode]`);
     broadcast('status', { running: true });
     await ensurePage();
+    
+    // Load provider credentials if provider is specified
+    if (profile.provider) {
+      const credentials = await getProviderCredentials(profile.provider);
+      if (credentials) {
+        context.email = credentials.email;
+        context.password = credentials.password;
+        context.apiKey = credentials.api_key;
+        context.credentials = credentials;
+        log(`🔑 Loaded credentials for ${profile.provider}`);
+      }
+    }
+    
+    // Execute provider command if specified (e.g., login, newchat, gotochat)
+    if (profile.command && profile.provider) {
+      log(`⚡ Executing command: ${profile.command} for ${profile.provider}`);
+      await executeProviderCommand(profile.provider, profile.command, context);
+    }
+    
     const sessionLoaded = await loadSession(profileName);
 if (profile.url) {
   let currentUrl = '';
@@ -1257,6 +1276,142 @@ app.post('/provider-credentials', requireApiKey, async (req, res) => {
   }
 });
 
+// Provider Login Endpoint - Execute login command for a provider
+app.post('/providers/:provider/login', requireApiKey, async (req, res) => {
+  if (isRunning) return res.status(409).json({ error: 'Already running' });
+  
+  try {
+    const { provider } = req.params;
+    const { email, password, apiKey } = req.body;
+    
+    // Save credentials first if provided
+    if (email || password || apiKey) {
+      await fetch(`${req.protocol}://${req.headers.host}/provider-credentials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY || 'internal' },
+        body: JSON.stringify({ provider, email, password, apiKey })
+      });
+    }
+    
+    // Load context with credentials
+    const credentials = await getProviderCredentials(provider);
+    if (!credentials || (!credentials.email && !credentials.apiKey)) {
+      return res.status(400).json({ error: 'No credentials available for this provider' });
+    }
+    
+    const context = {
+      email: credentials.email,
+      password: credentials.password,
+      apiKey: credentials.api_key,
+      credentials
+    };
+    
+    // Ensure browser and navigate to provider URL
+    await ensurePage();
+    const providerUrls = {
+      deepseek: 'https://chat.deepseek.com',
+      qwen: 'https://chat.qwen.ai',
+      chatgpt: 'https://chat.openai.com',
+      claude: 'https://claude.ai',
+      gemini: 'https://gemini.google.com'
+    };
+    
+    const targetUrl = providerUrls[provider];
+    if (targetUrl) {
+      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    }
+    
+    // Execute login command
+    await executeProviderCommand(provider, 'login', context);
+    
+    // Save session after successful login
+    await saveSession(`${provider}_login`);
+    
+    log(`✅ Login successful for ${provider}`);
+    res.json({ ok: true, message: `Login successful for ${provider}` });
+  } catch (e) {
+    log(`❌ Login failed: ${e.message}`, 'error');
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Execute JS Script Endpoint - Execute custom JS script from UI
+app.post('/execute-js', requireApiKey, async (req, res) => {
+  if (isRunning) return res.status(409).json({ error: 'Already running' });
+  
+  try {
+    const { profile, prompt } = req.body;
+    
+    if (!profile) {
+      return res.status(400).json({ error: 'Profile name is required' });
+    }
+    
+    // Find the profile
+    const profileData = profiles.find(p => p.name === profile);
+    if (!profileData) {
+      return res.status(404).json({ error: 'Profile not found' });
+    }
+    
+    if (profileData.workflowMode !== 'js') {
+      return res.status(400).json({ error: 'Profile is not in JS mode' });
+    }
+    
+    if (!profileData.script) {
+      return res.status(400).json({ error: 'No script defined for this profile' });
+    }
+    
+    // Load credentials if provider is set
+    let credentials = null;
+    if (profileData.provider) {
+      credentials = await getProviderCredentials(profileData.provider);
+    }
+    
+    const context = {
+      prompt: prompt || '',
+      message: prompt || '',
+      result: '',
+      workflowMode: 'js',
+      provider: profileData.provider || null,
+      credentials: credentials || {},
+      email: credentials?.email,
+      password: credentials?.password,
+      apiKey: credentials?.api_key
+    };
+    
+    // Ensure browser and navigate to provider URL if specified
+    await ensurePage();
+    if (profileData.url) {
+      await page.goto(profileData.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } else if (profileData.provider) {
+      const providerUrls = {
+        deepseek: 'https://chat.deepseek.com',
+        qwen: 'https://chat.qwen.ai',
+        chatgpt: 'https://chat.openai.com',
+        claude: 'https://claude.ai',
+        gemini: 'https://gemini.google.com'
+      };
+      const targetUrl = providerUrls[profileData.provider];
+      if (targetUrl) {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      }
+    }
+    
+    log(`▶ Executing JS script for profile: ${profile}`);
+    
+    // Execute the script
+    const scriptResult = await page.evaluate(async (scriptCode, ctx) => {
+      const fn = eval(scriptCode);
+      return await fn(ctx);
+    }, profileData.script, context);
+    
+    log(`✅ JS script executed successfully`);
+    res.json({ ok: true, result: scriptResult });
+  } catch (e) {
+    log(`❌ JS execution failed: ${e.message}`, 'error');
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/provider-credentials/:provider', requireApiKey, async (req, res) => {
   try {
     const { provider } = req.params;
@@ -1320,6 +1475,70 @@ app.get('/provider-credentials', requireApiKey, async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 });
+
+// Helper function to get provider credentials (for internal use)
+async function getProviderCredentials(provider) {
+  try {
+    let result = null;
+    
+    if (USE_POSTGRES && dbClient) {
+      const queryResult = await dbClient.query(
+        'SELECT provider, email, password, api_key, metadata FROM provider_credentials WHERE provider = $1',
+        [provider]
+      );
+      if (queryResult.rows[0]) {
+        result = queryResult.rows[0];
+      }
+    } else {
+      const credsFile = path.join(__dirname, 'provider_credentials.json');
+      if (fs.existsSync(credsFile)) {
+        const creds = JSON.parse(fs.readFileSync(credsFile, 'utf8'));
+        if (creds[provider]) {
+          result = { provider, ...creds[provider] };
+        }
+      }
+    }
+    
+    return result;
+  } catch (e) {
+    log(`Failed to load provider credentials: ${e.message}`, 'warn');
+    return null;
+  }
+}
+
+// Execute provider command (login, newchat, gotochat, etc.)
+async function executeProviderCommand(provider, command, context) {
+  const commandPath = path.join(__dirname, 'providers', provider, `${command}.js`);
+  
+  if (!fs.existsSync(commandPath)) {
+    throw new Error(`Command script not found: ${commandPath}`);
+  }
+  
+  const scriptContent = fs.readFileSync(commandPath, 'utf8');
+  
+  // Extract the async function from the script file
+  // Scripts are expected to be in format: (async (context) => { ... })()
+  // or just the function body
+  
+  try {
+    // Evaluate and execute the script in the browser context
+    const result = await page.evaluate(async (scriptCode, ctx) => {
+      // Create a function from the script and execute it
+      const fn = eval(scriptCode);
+      // If it's an IIFE that returns a promise, await it
+      if (fn && typeof fn.then === 'function') {
+        return await fn;
+      }
+      return fn;
+    }, scriptContent, context);
+    
+    log(`✅ Command ${command} executed for ${provider}`);
+    return result;
+  } catch (err) {
+    log(`❌ Command ${command} failed: ${err.message}`, 'error');
+    throw err;
+  }
+}
 
 app.get('/docs', async (req, res) => {
   try {

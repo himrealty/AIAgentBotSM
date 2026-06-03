@@ -163,9 +163,14 @@
         <label>Prompt</label>
         <textarea id="promptInput" rows="4" placeholder="Type your prompt here..."></textarea>
       </div>
-      <div class="btn-row">
+      <!-- Touch Mode Buttons -->
+      <div class="btn-row" id="touchModeBtns">
         <button id="runBtn" class="btn-primary" onclick="runAutomation()">▶ Run</button>
         <button id="stopBtn" class="btn-danger" onclick="stopAutomation()" disabled>⏹ Stop</button>
+      </div>
+      <!-- JS Mode Button -->
+      <div class="btn-row" id="jsModeBtns" style="display:none;">
+        <button id="executeJsBtn" class="btn-primary" onclick="executeJSScript()">⚡ Execute JS</button>
       </div>
 
       <div class="progress-bar-wrap" id="progressWrap" style="display:none">
