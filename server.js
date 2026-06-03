@@ -39,8 +39,8 @@ async function initDatabase() {
         slug text PRIMARY KEY,
         name text NOT NULL,
         url text,
-        workflow_mode text DEFAULT 'js',
-        steps jsonb NOT NULL,
+        workflow_mode text DEFAULT 'touch',
+        steps jsonb DEFAULT '[]'::jsonb, provider text, command text, script text,
         created_at timestamptz DEFAULT now(),
         updated_at timestamptz DEFAULT now()
       );
@@ -89,12 +89,12 @@ async function ensureProfileStore() {
 }
 
 async function loadProfilesFromDb() {
-  const result = await dbClient.query('SELECT slug, name, url, workflow_mode, steps FROM profiles ORDER BY name');
+  const result = await dbClient.query('SELECT slug, name, url, workflow_mode, steps, provider, command, script FROM profiles ORDER BY name');
   return assignProfileSlugs(result.rows.map(row => ({
     slug: row.slug,
     name: row.name,
     url: row.url,
-    workflowMode: row.workflow_mode || 'js',
+    workflowMode: row.workflow_mode || 'touch', provider: row.provider || null, command: row.command || null, script: row.script || null,
     steps: row.steps || []
   })));
 }
@@ -935,14 +935,14 @@ app.get('/profiles', async (req, res) => {
 app.post('/profiles', requireApiKey, async (req, res) => {
   try {
     const profiles = await loadProfiles();
-    const { name, url, steps, workflowMode } = req.body;
+    const { name, url, steps, workflowMode, provider, command, script } = req.body;
     if (!name) return res.status(400).json({ error: 'Profile name is required' });
     const sanitized = { 
       name, 
       url, 
       steps, 
       slug: slugify(name),
-      workflowMode: workflowMode || 'js'
+      workflowMode: workflowMode || 'touch', provider: provider || null, command: command || null, script: script || null
     };
     const idx = profiles.findIndex(p => p.name === name || p.slug === sanitized.slug);
     if (idx >= 0) profiles[idx] = sanitized;
