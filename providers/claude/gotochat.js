@@ -1,6 +1,11 @@
-(async () => {
-  const { tempChatIndex } = await chrome.storage.local.get('tempChatIndex');
-  const index = parseInt(tempChatIndex) || 0;
+/**
+ * Claude Go To Chat
+ * @param {Object} context - Execution context
+ * @param {number} context.chatIndex - Index of chat to open
+ * @returns {Promise<string>} - Result message
+ */
+(async (context = {}) => {
+  const index = parseInt(context.chatIndex) || 0;
 
   const chats = [...document.querySelectorAll('a[href*="/chat/"]')];
   if (!chats.length) throw new Error('No chats found');
@@ -16,5 +21,5 @@
     if (document.querySelector('[data-testid="chat-input"]')) break;
   }
 
-  await chrome.storage.local.set({ tempOutput: `navigated to: ${title}` });
+  return `navigated to: ${title}`;
 })();

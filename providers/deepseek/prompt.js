@@ -1,5 +1,11 @@
-(async () => {
-  const { tempMessage } = await chrome.storage.local.get('tempMessage');
+/**
+ * DeepSeek Prompt Execution
+ * @param {Object} context - Execution context
+ * @param {string} context.message - Message to send
+ * @returns {Promise<string>} - Response text
+ */
+(async (context = {}) => {
+  const tempMessage = context.message || '';
   if (!tempMessage) throw new Error('No message to send');
   
   const ta = document.querySelector('textarea');
@@ -29,8 +35,7 @@
     if (current !== initial && current.length === lastLength && current.length > 0) {
       stableCount++;
       if (stableCount >= 3) {
-        await chrome.storage.local.set({ tempOutput: current });
-        break;
+        return current;
       }
     } else {
       stableCount = 0;
