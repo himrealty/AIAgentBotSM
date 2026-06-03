@@ -1455,30 +1455,31 @@ app.post('/providers/:provider/login', requireApiKey, async (req, res) => {
       credentials
     };
     
-    // Ensure browser and navigate to provider URL
-    await ensurePage();
-    const providerUrls = {
-      deepseek: 'https://chat.deepseek.com',
-      qwen: 'https://chat.qwen.ai',
-      chatgpt: 'https://chat.openai.com',
-      claude: 'https://claude.ai',
-      gemini: 'https://gemini.google.com',
-      google: 'https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq%3Dgoogle%2Bsignin%26rlz%3D1C1CHBD_enIN1105IN1106%26oq%3Dgoogl%26gs_lcrp%3DEgZjaHJvbWUqBggAEEUYOzIGCAAQRRg7MgYIARBFGDkyBggCEEUYPDIGCAMQRRg8MgYIBBBFGDwyBggFEEUYPDIGCAYQRRg8MgYIBxBFGDzSAQgxMTc3ajBqN6gCALACAA%26sourceid%3Dchrome%26ie%3DUTF-8%26sei%3DHikgaqHTG6S94-EP7t3k6Ag&dsh=S-1506942775%3A1780492576621609&ec=futura_srp_og_si_72236_p&hl=en&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AWa2PaumkpzrE4lE8NAuXE8BS-8DhiLdWPV0I1u6VfS3x1cpUMBMPjE3nO5HS3Gm4UtXYe3AcKg2dQ'
-    };
+    // Execute login through UI to match user interaction
+    log(`▶ Executing login through UI for ${provider}`);
     
-    const targetUrl = providerUrls[provider];
-    if (targetUrl) {
-      await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    }
-    
-    // Execute login command
-    await executeProviderCommand(provider, 'login', context);
+    const uiResult = await runJsThroughAppUI({
+      runMode: 'provider',
+      script: '',
+      provider: provider,
+      command: 'login',
+      prompt: '',
+      credentials: {
+        email: credentials.email || '',
+        password: credentials.password || '',
+        apiKey: credentials.api_key || ''
+      },
+      chatIndex: undefined,
+      imageSize: undefined,
+      videoSize: undefined,
+      code: context.code
+    });
     
     // Save session after successful login
     await saveSession(`${provider}_login`);
     
-    log(`✅ Login successful for ${provider}`);
-    res.json({ ok: true, message: `Login successful for ${provider}` });
+    log(`✅ Login successful for ${provider} through UI`);
+    res.json({ ok: true, message: `Login successful for ${provider}`, result: uiResult });
   } catch (e) {
     log(`❌ Login failed: ${e.message}`, 'error');
     res.status(500).json({ error: e.message });
@@ -1490,8 +1491,7 @@ app.post('/execute-js', requireApiKey, async (req, res) => {
   if (isRunning) return res.status(409).json({ error: 'Already running' });
   
   try {
-    const { profile, prompt, useUi, ui } = req.body;
-    const useUiControl = Boolean(useUi || ui);
+    const { profile, prompt } = req.body;
     
     if (!profile) {
       return res.status(400).json({ error: 'Profile name is required' });
@@ -1511,92 +1511,22 @@ app.post('/execute-js', requireApiKey, async (req, res) => {
       return res.status(400).json({ error: 'No script or provider command defined for this profile' });
     }
     
-    if (useUiControl) {
-      const scriptSource = profileData.scriptSource === 'custom' ? 'custom' : 'provider';
-      const credentials = profileData.provider ? await getProviderCredentials(profileData.provider) : {};
-      const uiResult = await runJsThroughAppUI({
-        runMode: scriptSource,
-        script: profileData.script || '',
-        provider: profileData.provider || '',
-        command: profileData.command || '',
-        prompt: prompt || '',
-        credentials: { email: credentials?.email || '', password: credentials?.password || '', apiKey: credentials?.api_key || '' },
-        chatIndex: profileData.chatIndex,
-        imageSize: profileData.imageSize,
-        videoSize: profileData.videoSize,
-        code: profileData.code
-      });
-      return res.json({ ok: true, result: uiResult });
-    }
-    
-    // Load credentials if provider is set
-    let credentials = null;
-    if (profileData.provider) {
-      credentials = await getProviderCredentials(profileData.provider);
-    }
-    
-    const context = {
+    // Always execute through UI to match user interaction
+    const scriptSource = profileData.scriptSource === 'custom' ? 'custom' : 'provider';
+    const credentials = profileData.provider ? await getProviderCredentials(profileData.provider) : {};
+    const uiResult = await runJsThroughAppUI({
+      runMode: scriptSource,
+      script: profileData.script || '',
+      provider: profileData.provider || '',
+      command: profileData.command || '',
       prompt: prompt || '',
-      message: prompt || '',
-      result: '',
-      workflowMode: 'js',
-      provider: profileData.provider || null,
-      credentials: credentials || {},
-      email: credentials?.email,
-      password: credentials?.password,
-      apiKey: credentials?.api_key
-    };
-    
-    // Ensure browser and navigate to provider URL if specified
-    await ensurePage();
-    if (profileData.url) {
-      await page.goto(profileData.url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-    } else if (profileData.provider) {
-      const providerUrls = {
-        deepseek: 'https://chat.deepseek.com',
-        qwen: 'https://chat.qwen.ai',
-        chatgpt: 'https://chat.openai.com',
-        claude: 'https://claude.ai',
-        gemini: 'https://gemini.google.com',
-        google: 'https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq%3Dgoogle%2Bsignin%26rlz%3D1C1CHBD_enIN1105IN1106%26oq%3Dgoogl%26gs_lcrp%3DEgZjaHJvbWUqBggAEEUYOzIGCAAQRRg7MgYIARBFGDkyBggCEEUYPDIGCAMQRRg8MgYIBBBFGDwyBggFEEUYPDIGCAYQRRg8MgYIBxBFGDzSAQgxMTc3ajBqN6gCALACAA%26sourceid%3Dchrome%26ie%3DUTF-8%26sei%3DHikgaqHTG6S94-EP7t3k6Ag&dsh=S-1506942775%3A1780492576621609&ec=futura_srp_og_si_72236_p&hl=en&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AWa2PaumkpzrE4lE8NAuXE8BS-8DhiLdWPV0I1u6VfS3x1cpUMBMPjE3nO5HS3Gm4UtXYe3AcKg2dQ'
-      };
-      const targetUrl = providerUrls[profileData.provider];
-      if (targetUrl) {
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      }
-    }
-    
-    log(`▶ Executing JS script for profile: ${profile}`);
-    
-    let scriptResult;
-    if (profileData.script) {
-      // Execute custom saved JS script
-      scriptResult = await page.evaluate(async (scriptCode, ctx) => {
-        try {
-          const result = eval(scriptCode);
-          if (result && typeof result.then === 'function') {
-            return await result;
-          }
-          if (typeof result === 'function') {
-            const fnResult = result(ctx);
-            if (fnResult && typeof fnResult.then === 'function') {
-              return await fnResult;
-            }
-            return fnResult;
-          }
-          return result;
-        } catch (evalErr) {
-          throw new Error(`Script execution error: ${evalErr.message}`);
-        }
-      }, profileData.script, context);
-    } else {
-      // Execute provider command script from file
-      log(`▶ Executing provider command script: ${profileData.provider}/${profileData.command}`);
-      scriptResult = await executeProviderCommand(profileData.provider, profileData.command, context);
-    }
-    
-    log(`✅ JS script executed successfully`);
-    res.json({ ok: true, result: scriptResult });
+      credentials: { email: credentials?.email || '', password: credentials?.password || '', apiKey: credentials?.api_key || '' },
+      chatIndex: profileData.chatIndex,
+      imageSize: profileData.imageSize,
+      videoSize: profileData.videoSize,
+      code: profileData.code
+    });
+    return res.json({ ok: true, result: uiResult });
   } catch (e) {
     log(`❌ JS execution failed: ${e.message}`, 'error');
     res.status(500).json({ error: e.message });
@@ -1608,101 +1538,26 @@ app.post('/execute-js-direct', requireApiKey, async (req, res) => {
   if (isRunning) return res.status(409).json({ error: 'Already running' });
   
   try {
-    const { script, context: reqContext, useUi, ui } = req.body;
-    const useUiControl = Boolean(useUi || ui);
+    const { script, context: reqContext } = req.body;
     
     if (!script && !(reqContext?.provider && reqContext?.command)) {
       return res.status(400).json({ error: 'Script or provider command is required' });
     }
 
-    if (useUiControl) {
-      const uiResult = await runJsThroughAppUI({
-        runMode: script ? 'custom' : 'provider',
-        script: script || '',
-        provider: reqContext?.provider || '',
-        command: reqContext?.command || '',
-        prompt: reqContext?.prompt || '',
-        credentials: reqContext?.credentials || {},
-        chatIndex: reqContext?.chatIndex,
-        imageSize: reqContext?.imageSize,
-        videoSize: reqContext?.videoSize,
-        code: reqContext?.code
-      });
-      return res.json({ ok: true, result: uiResult });
-    }
-    
-    // Load credentials if provider is set
-    let credentials = null;
-    if (reqContext?.provider) {
-      credentials = await getProviderCredentials(reqContext.provider);
-    }
-    
-    const context = {
+    // Always execute through UI to match user interaction
+    const uiResult = await runJsThroughAppUI({
+      runMode: script ? 'custom' : 'provider',
+      script: script || '',
+      provider: reqContext?.provider || '',
+      command: reqContext?.command || '',
       prompt: reqContext?.prompt || '',
-      message: reqContext?.prompt || '',
-      result: '',
-      workflowMode: 'js',
-      provider: reqContext?.provider || null,
-      command: reqContext?.command || null,
-      chatIndex: reqContext?.chatIndex !== undefined ? reqContext.chatIndex : 0,
-      imageSize: reqContext?.imageSize || '',
-      videoSize: reqContext?.videoSize || '',
-      credentials: credentials || {},
-      email: reqContext?.credentials?.email || credentials?.email,
-      password: reqContext?.credentials?.password || credentials?.password,
-      apiKey: reqContext?.credentials?.apiKey || credentials?.api_key
-    };
-    
-    // Ensure browser and navigate to provider URL if specified
-    await ensurePage();
-    if (context.provider) {
-      const providerUrls = {
-        deepseek: 'https://chat.deepseek.com',
-        qwen: 'https://chat.qwen.ai',
-        chatgpt: 'https://chat.openai.com',
-        claude: 'https://claude.ai',
-        gemini: 'https://gemini.google.com',
-        google: 'https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq%3Dgoogle%2Bsignin%26rlz%3D1C1CHBD_enIN1105IN1106%26oq%3Dgoogl%26gs_lcrp%3DEgZjaHJvbWUqBggAEEUYOzIGCAAQRRg7MgYIARBFGDkyBggCEEUYPDIGCAMQRRg8MgYIBBBFGDwyBggFEEUYPDIGCAYQRRg8MgYIBxBFGDzSAQgxMTc3ajBqN6gCALACAA%26sourceid%3Dchrome%26ie%3DUTF-8%26sei%3DHikgaqHTG6S94-EP7t3k6Ag&dsh=S-1506942775%3A1780492576621609&ec=futura_srp_og_si_72236_p&hl=en&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AWa2PaumkpzrE4lE8NAuXE8BS-8DhiLdWPV0I1u6VfS3x1cpUMBMPjE3nO5HS3Gm4UtXYe3AcKg2dQ'
-      };
-      const targetUrl = providerUrls[context.provider];
-      if (targetUrl) {
-        let currentUrl = '';
-        try { currentUrl = page.url(); } catch (_) {}
-        if (!currentUrl.includes(new URL(targetUrl).hostname)) {
-          await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        }
-      }
-    }
-    
-    log(`▶ Executing JS script directly from Builder`);
-    
-    let scriptResult;
-    if (script) {
-      scriptResult = await page.evaluate(async (scriptCode, ctx) => {
-        try {
-          const result = eval(scriptCode);
-          if (result && typeof result.then === 'function') {
-            return await result;
-          }
-          if (typeof result === 'function') {
-            const fnResult = result(ctx);
-            if (fnResult && typeof fnResult.then === 'function') {
-              return await fnResult;
-            }
-            return fnResult;
-          }
-          return result;
-        } catch (evalErr) {
-          throw new Error(`Script execution error: ${evalErr.message}`);
-        }
-      }, script, context);
-    } else {
-      log(`▶ Executing provider command script: ${reqContext.provider}/${reqContext.command}`);
-      scriptResult = await executeProviderCommand(reqContext.provider, reqContext.command, context);
-    }
-    
-    log(`✅ JS script executed successfully`);
-    res.json({ ok: true, result: scriptResult });
+      credentials: reqContext?.credentials || {},
+      chatIndex: reqContext?.chatIndex,
+      imageSize: reqContext?.imageSize,
+      videoSize: reqContext?.videoSize,
+      code: reqContext?.code
+    });
+    return res.json({ ok: true, result: uiResult });
   } catch (e) {
     log(`❌ JS execution failed: ${e.message}`, 'error');
     res.status(500).json({ error: e.message });
@@ -1849,33 +1704,28 @@ async function executeProviderCommand(provider, command, context) {
   const scriptContent = fs.readFileSync(commandPath, 'utf8');
   
   try {
-    // Execute the script in the browser context
-    // The script may be a self-invoking IIFE that expects a `context` argument.
-    const result = await page.evaluate(async (scriptCode, ctx) => {
-      try {
-            const normalizedScript = scriptCode.trim().replace(/^(.*\}\))\(\);?\s*$/s, '$1(ctx);');
-        const evalResult = eval(normalizedScript);
-        
-        if (evalResult && typeof evalResult.then === 'function') {
-          return await evalResult;
-        }
-        
-        if (typeof evalResult === 'function') {
-          const fnResult = evalResult(ctx);
-          if (fnResult && typeof fnResult.then === 'function') {
-            return await fnResult;
-          }
-          return fnResult;
-        }
-        
-        return evalResult;
-      } catch (evalErr) {
-        throw new Error(`Script execution error: ${evalErr.message}`);
-      }
-    }, scriptContent, context);
+    // Execute through the Builder UI to match user interaction
+    log(`▶ Executing provider command through UI: ${provider}/${command}`);
     
-    log(`✅ Command ${command} executed for ${provider}`);
-    return result;
+    const uiResult = await runJsThroughAppUI({
+      runMode: 'provider',
+      script: '',
+      provider: provider,
+      command: command,
+      prompt: context.prompt || context.message || '',
+      credentials: {
+        email: context.email || context.credentials?.email || '',
+        password: context.password || context.credentials?.password || '',
+        apiKey: context.apiKey || context.credentials?.apiKey || ''
+      },
+      chatIndex: context.chatIndex,
+      imageSize: context.imageSize,
+      videoSize: context.videoSize,
+      code: context.code
+    });
+    
+    log(`✅ Command ${command} executed for ${provider} through UI`);
+    return uiResult;
   } catch (err) {
     log(`❌ Command ${command} failed: ${err.message}`, 'error');
     throw err;
