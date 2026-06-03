@@ -1412,6 +1412,68 @@ app.post('/execute-js', requireApiKey, async (req, res) => {
   }
 });
 
+// Execute JS directly from Builder without saving profile
+app.post('/execute-js-direct', requireApiKey, async (req, res) => {
+  if (isRunning) return res.status(409).json({ error: 'Already running' });
+  
+  try {
+    const { script, context: reqContext } = req.body;
+    
+    if (!script) {
+      return res.status(400).json({ error: 'Script is required' });
+    }
+    
+    // Load credentials if provider is set
+    let credentials = null;
+    if (reqContext?.provider) {
+      credentials = await getProviderCredentials(reqContext.provider);
+    }
+    
+    const context = {
+      prompt: reqContext?.prompt || '',
+      message: reqContext?.prompt || '',
+      result: '',
+      workflowMode: 'js',
+      provider: reqContext?.provider || null,
+      command: reqContext?.command || null,
+      credentials: credentials || {},
+      email: reqContext?.credentials?.email || credentials?.email,
+      password: reqContext?.credentials?.password || credentials?.password,
+      apiKey: reqContext?.credentials?.apiKey || credentials?.api_key
+    };
+    
+    // Ensure browser and navigate to provider URL if specified
+    await ensurePage();
+    if (context.provider) {
+      const providerUrls = {
+        deepseek: 'https://chat.deepseek.com',
+        qwen: 'https://chat.qwen.ai',
+        chatgpt: 'https://chat.openai.com',
+        claude: 'https://claude.ai',
+        gemini: 'https://gemini.google.com'
+      };
+      const targetUrl = providerUrls[context.provider];
+      if (targetUrl) {
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      }
+    }
+    
+    log(`▶ Executing JS script directly from Builder`);
+    
+    // Execute the script
+    const scriptResult = await page.evaluate(async (scriptCode, ctx) => {
+      const fn = eval(scriptCode);
+      return await fn(ctx);
+    }, script, context);
+    
+    log(`✅ JS script executed successfully`);
+    res.json({ ok: true, result: scriptResult });
+  } catch (e) {
+    log(`❌ JS execution failed: ${e.message}`, 'error');
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.get('/provider-credentials/:provider', requireApiKey, async (req, res) => {
   try {
     const { provider } = req.params;
