@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer-core');
+const puppeteer = require('puppeteer');
 const express = require('express');
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -486,16 +486,41 @@ async function ensureBrowser() {
   if (browser && browser.isConnected()) return;
   const exePath = getChromiumPath();
   log(`Launching Chromium: ${exePath}`);
-  browser = await puppeteerExtra.launch({
-    executablePath: exePath,
-    headless: HEADLESS,
+
+  const launchOptions = {
+    headless: 'new',
     args: [
-      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'
+      '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+      '--disable-gpu', '--disable-background-networking',
+      '--disable-sync', '--no-first-run', '--no-default-browser-check',
+      '--disable-background-timer-throttling',
+      '--disable-renderer-backgrounding',
+      '--disable-features=site-per-process,TranslateUI',
+      '--disable-software-rasterizer'
     ],
     defaultViewport: VIEWPORT,
+    ignoreDefaultArgs: ['--enable-automation', '--disable-extensions'],
     pipe: true,
     timeout: 60000
-  });
+  };
+
+  if (exePath) {
+    launchOptions.executablePath = exePath;
+  }
+
+  try {
+    browser = await puppeteerExtra.launch(launchOptions);
+  } catch (err) {
+    if (exePath) {
+      log(`Failed to launch browser at ${exePath}: ${err.message}`, 'warn');
+      log('Retrying launch without explicit executablePath');
+      delete launchOptions.executablePath;
+      browser = await puppeteerExtra.launch(launchOptions);
+    } else {
+      throw err;
+    }
+  }
+
   browser.on('disconnected', () => { browser = null; page = null; log('Browser disconnected', 'warn'); });
 }
 
@@ -505,6 +530,13 @@ async function ensurePage() {
   const pages = await browser.pages();
   page = pages.length > 0 ? pages[0] : await browser.newPage();
   await page.setViewport(VIEWPORT);
+  await page.setUserAgent(UA);
+  await page.evaluateOnNewDocument(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3] });
+    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+    window.chrome = { runtime: {} };
+  });
   installAnalyticsInterceptor(page);
   return page;
 }
