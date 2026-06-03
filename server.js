@@ -632,16 +632,14 @@ async function navigateToProviderBaseUrl(provider) {
 
 async function evaluateScriptContent(scriptContent, context) {
   const script = scriptContent.trim();
-  let wrappedScript = script;
+  let wrappedScript;
 
-  if (/^\(?\s*(async\s+function|async\s*\(|function\s*)/.test(script)) {
-    if (script.endsWith('})();')) {
-      wrappedScript = script.replace(/\)\(\);\s*$/, '})(context);');
-    } else if (script.endsWith('}());')) {
-      wrappedScript = script.replace(/\}\(\);\s*$/, '})(context);');
-    } else {
-      wrappedScript = `return (${script})(context);`;
-    }
+  if (script.endsWith('})();')) {
+    const withoutCall = script.replace(/\)\(\);\s*$/, ')');
+    wrappedScript = `return (${withoutCall})(context);`;
+  } else if (script.endsWith('}());')) {
+    const withoutCall = script.replace(/\}\(\);\s*$/, '}');
+    wrappedScript = `return (${withoutCall})(context);`;
   } else {
     wrappedScript = `return (${script})(context);`;
   }
