@@ -120,7 +120,16 @@ async function saveProfilesToDb(profiles) {
   const sanitized = profiles.map(profile => ({ 
     ...profile, 
     slug: slugify(profile.name),
-    workflowMode: profile.workflowMode || 'touch'
+    workflowMode: profile.workflowMode || 'touch',
+    steps: (() => {
+      try {
+        if (Array.isArray(profile.steps)) return profile.steps;
+        if (typeof profile.steps === 'string') return JSON.parse(profile.steps);
+      } catch (_) {
+        // fall through
+      }
+      return [];
+    })()
   }));
   await dbClient.query('BEGIN');
   try {
@@ -132,7 +141,7 @@ async function saveProfilesToDb(profiles) {
          SET name = EXCLUDED.name, url = EXCLUDED.url, workflow_mode = EXCLUDED.workflow_mode, 
              steps = EXCLUDED.steps, provider = EXCLUDED.provider, command = EXCLUDED.command, 
              script = EXCLUDED.script, script_source = EXCLUDED.script_source, updated_at = now()`,
-        [profile.slug, profile.name, profile.url, profile.workflowMode, profile.steps, profile.provider, profile.command, profile.script, profile.scriptSource || 'provider']
+        [profile.slug, profile.name, profile.url, profile.workflowMode, JSON.stringify(profile.steps), profile.provider, profile.command, profile.script, profile.scriptSource || 'provider']
       );
     }
     const slugs = sanitized.map(p => p.slug);
@@ -1481,7 +1490,11 @@ app.post('/execute-js-direct', requireApiKey, async (req, res) => {
       };
       const targetUrl = providerUrls[context.provider];
       if (targetUrl) {
-        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        let currentUrl = '';
+        try { currentUrl = page.url(); } catch (_) {}
+        if (!currentUrl.includes(new URL(targetUrl).hostname)) {
+          await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        }
       }
     }
     
