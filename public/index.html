@@ -200,19 +200,42 @@
         </div>
         <div class="field-row">
           <label style="flex:1; font-size:12px; color:#aaa;">
-            Default action
-            <select id="builderDefaultAction" style="width:100%; margin-top:4px;">
-              <option value="click">click</option>
-              <option value="copy">copy</option>
-              <option value="read">read</option>
-              <option value="goto">goto</option>
-              <option value="navigate">navigate</option>
-              <option value="type">type</option>
-              <option value="send">send</option>
-              <option value="wait">wait</option>
-              <option value="waitSelector">waitSelector</option>
-              <option value="waitSelectorGone">waitSelectorGone</option>
+            Workflow Mode
+            <select id="builderWorkflowMode" style="width:100%; margin-top:4px;">
+              <option value="touch">👆 Touch-Based (Click/Type on screen)</option>
+              <option value="js">💻 JS-Based (Custom script execution)</option>
             </select>
+          </label>
+        </div>
+        <div class="field-row" id="providerRow" style="display:none;">
+          <label style="flex:1; font-size:12px; color:#aaa;">
+            Provider
+            <select id="builderProvider" style="width:100%; margin-top:4px;">
+              <option value="">-- Select Provider --</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="qwen">Qwen</option>
+              <option value="chatgpt">ChatGPT</option>
+              <option value="claude">Claude</option>
+              <option value="gemini">Gemini</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row" id="commandRow" style="display:none;">
+          <label style="flex:1; font-size:12px; color:#aaa;">
+            Command
+            <select id="builderCommand" style="width:100%; margin-top:4px;">
+              <option value="">-- Select Command --</option>
+              <option value="newchat">New Chat</option>
+              <option value="gotochat">Go to Chat</option>
+              <option value="getchats">Get Chats</option>
+              <option value="prompt">Send Prompt</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-row" id="scriptRow" style="display:none;">
+          <label style="flex:1; font-size:12px; color:#aaa;">
+            JavaScript Code
+            <textarea id="builderScript" rows="6" placeholder="async function run(context) { const { page, message } = context; // Your code here return { success: true, result: 'done' }; }" style="width:100%; margin-top:4px; font-family:monospace; font-size:11px;"></textarea>
           </label>
         </div>
         <div class="btn-row">
@@ -221,11 +244,11 @@
           <button class="btn-danger btn-sm" onclick="deleteBuilderProfile()">🗑 Delete</button>
         </div>
         <div class="builder-hint">
-          Click on the live browser view (left) to add a step at that position. Drag steps to reorder.
+          👆 Touch Mode: Click on the live browser view (left) to add steps. 💻 JS Mode: Write custom automation scripts.
         </div>
       </div>
 
-      <div class="steps-header">
+      <div class="steps-header" id="stepsHeader">
         <span>Steps</span>
         <button class="btn-sm" onclick="addManualStep()">+ Add Step</button>
       </div>

@@ -6,6 +6,7 @@ let selectedStepIdx = null;
 let isRunning = false;
 let liveInterval = null;
 let builderMode = false;
+let builderWorkflowMode = 'touch'; // 'touch' or 'js'
 let builderDefaultAction = 'click';
 let sse = null;
 let sortable = null;
@@ -22,6 +23,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupClickOverlay();
   setupManualInput();
   setupFloatingLogs();
+  setupWorkflowModeSwitch();
   updateUrl();
   document.getElementById('profileSelect').addEventListener('change', () => {
     const profile = profiles.find(p => p.name === document.getElementById('profileSelect').value);
@@ -407,9 +409,23 @@ async function copyResponse() {
 function loadBuilderFromProfile(profile) {
   document.getElementById('builderName').value = profile.name || '';
   document.getElementById('builderUrl').value = profile.url || '';
-  builderSteps = JSON.parse(JSON.stringify(profile.steps || []));
-  renderStepsList();
-  renderBuilderMarkers();
+  const workflowMode = profile.workflowMode || 'touch';
+  document.getElementById('builderWorkflowMode').value = workflowMode;
+  builderWorkflowMode = workflowMode;
+  
+  if (workflowMode === 'js') {
+    // JS mode: load provider, command, script
+    if (profile.provider) document.getElementById('builderProvider').value = profile.provider;
+    if (profile.command) document.getElementById('builderCommand').value = profile.command;
+    if (profile.script) document.getElementById('builderScript').value = profile.script;
+    updateCommandOptions(profile.provider);
+    updateWorkflowModeUI();
+  } else {
+    // Touch mode: load steps
+    builderSteps = JSON.parse(JSON.stringify(profile.steps || []));
+    renderStepsList();
+    renderBuilderMarkers();
+  }
 }
 
 function loadBuilderProfile() {
@@ -423,7 +439,23 @@ async function saveBuilderProfile() {
   const name = document.getElementById('builderName').value.trim();
   const url = document.getElementById('builderUrl').value.trim();
   if (!name) { addLog('Enter a profile name', 'warn'); return; }
-  const payload = { name, url, steps: builderSteps };
+  
+  const workflowMode = document.getElementById('builderWorkflowMode').value;
+  const payload = { 
+    name, 
+    url, 
+    workflowMode,
+    steps: builderSteps 
+  };
+  
+  // JS mode: include provider, command, script
+  if (workflowMode === 'js') {
+    payload.provider = document.getElementById('builderProvider').value;
+    payload.command = document.getElementById('builderCommand').value;
+    payload.script = document.getElementById('builderScript').value;
+    payload.steps = []; // No steps in JS mode
+  }
+  
   const r = await fetch('/profiles', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -760,4 +792,67 @@ function escHtml(s) {
 }
 function escAttr(s) {
   return String(s || '').replace(/"/g, '&quot;');
+}
+// ── WORKFLOW MODE SWITCH ───────────────────────────────────
+function setupWorkflowModeSwitch() {
+  const modeSelect = document.getElementById('builderWorkflowMode');
+  if (!modeSelect) return;
+  
+  modeSelect.addEventListener('change', () => {
+    builderWorkflowMode = modeSelect.value;
+    updateWorkflowModeUI();
+  });
+  
+  // Provider selector change
+  const providerSelect = document.getElementById('builderProvider');
+  if (providerSelect) {
+    providerSelect.addEventListener('change', () => {
+      updateCommandOptions(providerSelect.value);
+    });
+  }
+}
+
+function updateWorkflowModeUI() {
+  const providerRow = document.getElementById('providerRow');
+  const commandRow = document.getElementById('commandRow');
+  const scriptRow = document.getElementById('scriptRow');
+  const stepsHeader = document.getElementById('stepsHeader');
+  const stepsList = document.getElementById('stepsList');
+  
+  if (builderWorkflowMode === 'js') {
+    // JS Mode: show script editor, hide steps
+    if (providerRow) providerRow.style.display = 'flex';
+    if (commandRow) commandRow.style.display = 'flex';
+    if (scriptRow) scriptRow.style.display = 'flex';
+    if (stepsHeader) stepsHeader.style.display = 'none';
+    if (stepsList) stepsList.style.display = 'none';
+  } else {
+    // Touch Mode: show steps, hide script/provider
+    if (providerRow) providerRow.style.display = 'none';
+    if (commandRow) commandRow.style.display = 'none';
+    if (scriptRow) scriptRow.style.display = 'none';
+    if (stepsHeader) stepsHeader.style.display = 'flex';
+    if (stepsList) stepsList.style.display = 'block';
+  }
+}
+
+function updateCommandOptions(provider) {
+  const commandSelect = document.getElementById('builderCommand');
+  if (!commandSelect || !provider) {
+    if (commandSelect) commandSelect.innerHTML = '<option value="">-- Select Command --</option>';
+    return;
+  }
+  
+  // Load available commands for this provider
+  const commands = {
+    deepseek: ['newchat', 'gotochat', 'getchats', 'prompt'],
+    qwen: ['newchat', 'gotochat', 'getchats', 'prompt', 'qwenimage', 'qwenvideo'],
+    chatgpt: ['newchat', 'gotochat', 'getchats', 'prompt'],
+    claude: ['newchat', 'gotochat', 'getchats', 'promptui'],
+    gemini: ['newchat', 'gotochat', 'getchats']
+  };
+  
+  const cmds = commands[provider] || [];
+  commandSelect.innerHTML = '<option value="">-- Select Command --</option>' + 
+    cmds.map(c => `<option value="${c}">${c}</option>`).join('');
 }
