@@ -439,6 +439,60 @@ async function executeJSScript() {
   }
 }
 
+// Execute JS directly from Builder tab without saving
+async function executeJSScriptFromBuilder() {
+  const script = document.getElementById('builderScript').value.trim();
+  const provider = document.getElementById('builderProvider').value;
+  const command = document.getElementById('builderCommand').value;
+  const email = document.getElementById('providerEmail').value.trim();
+  const password = document.getElementById('providerPassword').value.trim();
+  const apiKey = document.getElementById('providerApiKey').value.trim();
+  const workflowMode = document.getElementById('builderWorkflowMode').value;
+  
+  if (workflowMode !== 'js') {
+    addLog('Switch to JS mode to execute scripts', 'warn');
+    return;
+  }
+  
+  if (!script) {
+    addLog('Please enter JavaScript code first', 'error');
+    return;
+  }
+  
+  addLog('⚡ Executing JS from Builder...', 'info');
+  setRunning(true);
+  
+  try {
+    const context = {
+      provider: provider || '',
+      command: command || '',
+      credentials: {
+        email: email || '',
+        password: password || '',
+        apiKey: apiKey || ''
+      }
+    };
+    
+    const r = await fetch('/execute-js-direct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ script, context })
+    });
+    
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed');
+    
+    addLog('✅ Script executed successfully', 'success');
+    if (data.result) {
+      document.getElementById('responseBox').textContent = JSON.stringify(data.result, null, 2);
+    }
+  } catch (e) {
+    addLog('Error: ' + e.message, 'error');
+  } finally {
+    setRunning(false);
+  }
+}
+
 // Check if the workflow requires a prompt based on mode and steps
 function shouldRequirePrompt(profile) {
   if (!profile) return true;
@@ -969,6 +1023,7 @@ function updateWorkflowModeUI() {
   const stepsList = document.getElementById('stepsList');
   const touchModeBtns = document.getElementById('touchModeBtns');
   const jsModeBtns = document.getElementById('jsModeBtns');
+  const builderExecuteJsBtn = document.getElementById('builderExecuteJsBtn');
   
   if (builderWorkflowMode === 'js') {
     // JS Mode: show script editor, hide steps
@@ -983,6 +1038,7 @@ function updateWorkflowModeUI() {
     // Show JS button, hide Touch buttons
     if (touchModeBtns) touchModeBtns.style.display = 'none';
     if (jsModeBtns) jsModeBtns.style.display = 'flex';
+    if (builderExecuteJsBtn) builderExecuteJsBtn.style.display = 'inline-block';
   } else {
     // Touch Mode: show steps, hide script/provider
     if (providerRow) providerRow.style.display = 'none';
@@ -994,6 +1050,7 @@ function updateWorkflowModeUI() {
     // Show Touch buttons, hide JS button
     if (touchModeBtns) touchModeBtns.style.display = 'flex';
     if (jsModeBtns) jsModeBtns.style.display = 'none';
+    if (builderExecuteJsBtn) builderExecuteJsBtn.style.display = 'none';
   }
 }
 
