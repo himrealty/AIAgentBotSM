@@ -20,7 +20,7 @@
   },
   {
     "name": "Qwen Send",
-    "url": "https://tongyi.aliyun.com/qianwen/",
+    "url": "https://chat.qwen.ai",
     "steps": [
       { "id": 1, "action": "click", "x": 640, "y": 650, "label": "Click input" },
       { "id": 2, "action": "type", "text": "{{prompt}}", "delay": 30, "label": "Type prompt" },
@@ -35,6 +35,20 @@
         "waitMs": 600,
         "label": "Extract Qwen response" 
       }
+    ]
+  },
+  {
+    "name": "Click",
+    "url": "https://chat.deepseek.com",
+    "steps": [
+      { "id": 1, "action": "wait", "ms": 1000, "label": "Wait for page load" }
+    ]
+  },
+  {
+    "name": "GLogin",
+    "url": "https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fwww.google.com%2Fsearch%3Fq%3Dgoogle%2Bsignin%26rlz%3D1C1CHBD_enIN1105IN1106%26oq%3Dgoogl%26gs_lcrp%3DEgZjaHJvbWUqBggAEEUYOzIGCAAQRRg7MgYIARBFGDkyBggCEEUYPDIGCAMQRRg8MgYIBBBFGDwyBggFEEUYPDIGCAYQRRg8MgYIBxBFGDzSAQgxMTc3ajBqN6gCALACAA%26sourceid%3Dchrome%26ie%3DUTF-8%26sei%3DHikgaqHTG6S94-EP7t3k6Ag&dsh=S-1506942775%3A1780492576621609&ec=futura_srp_og_si_72236_p&hl=en&passive=true&flowName=GlifWebSignIn&flowEntry=ServiceLogin&ifkv=AWa2PaumkpzrE4lE8NAuXE8BS-8DhiLdWPV0I1u6VfS3x1cpUMBMPjE3nO5HS3Gm4UtXYe3AcKg2dQ",
+    "steps": [
+      { "id": 1, "action": "wait", "ms": 1000, "label": "Wait for Google login page" }
     ]
   }
 ]
