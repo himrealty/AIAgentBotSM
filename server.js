@@ -1629,7 +1629,7 @@ async function executeProviderCommand(provider, command, context) {
     // The script may be a self-invoking IIFE that expects a `context` argument.
     const result = await page.evaluate(async (scriptCode, ctx) => {
       try {
-        const normalizedScript = scriptCode.trim().replace(/\)\(\);?\s*$/, '})(ctx);');
+            const normalizedScript = scriptCode.trim().replace(/^(.*\}\))\(\);?\s*$/s, '$1(ctx);');
         const evalResult = eval(normalizedScript);
         
         if (evalResult && typeof evalResult.then === 'function') {
