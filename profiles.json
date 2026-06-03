@@ -20,7 +20,7 @@
   },
   {
     "name": "Qwen Send",
-    "url": "https://tongyi.aliyun.com/qianwen/",
+    "url": "https://chat.qwen.ai",
     "steps": [
       { "id": 1, "action": "click", "x": 640, "y": 650, "label": "Click input" },
       { "id": 2, "action": "type", "text": "{{prompt}}", "delay": 30, "label": "Type prompt" },
