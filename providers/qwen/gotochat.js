@@ -1,10 +1,15 @@
-(async () => {
-  const { tempChatIndex } = await chrome.storage.local.get('tempChatIndex');
-  const idx = parseInt(tempChatIndex) || 0;
+/**
+ * Qwen Go To Chat
+ * @param {Object} context - Execution context
+ * @param {number} context.chatIndex - Index of chat to open
+ * @returns {Promise<Object>} - Result object
+ */
+(async (context = {}) => {
+  const idx = parseInt(context.chatIndex) || 0;
   const items = document.querySelectorAll('a.chat-item-drag-link');
   if (!items.length) throw new Error('No chats found');
   if (idx >= items.length) throw new Error(`Index ${idx} out of range (max ${items.length - 1})`);
   items[idx].click();
   await new Promise(r => setTimeout(r, 500));
-  await chrome.storage.local.set({ tempOutput: JSON.stringify({ ok: true, index: idx }) });
+  return { ok: true, index: idx };
 })();

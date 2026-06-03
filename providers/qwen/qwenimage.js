@@ -1,8 +1,15 @@
-(async () => {
-  const { tempMessage, tempImageSize } = await chrome.storage.local.get(['tempMessage', 'tempImageSize']);
+/**
+ * Qwen Image Generation
+ * @param {Object} context - Execution context
+ * @param {string} context.message - Prompt for image
+ * @param {string} context.imageSize - Image size/ratio (default: 16:9)
+ * @returns {Promise<string>} - Image URL
+ */
+(async (context = {}) => {
+  const tempMessage = context.message || '';
   if (!tempMessage) throw new Error('No prompt');
 
-  const ratio = tempImageSize || '16:9';
+  const ratio = context.imageSize || '16:9';
   const IMGBB_KEY = '1f8ae6b0fb0849dbb9a72bdb61b58185';
 
   // Step 1 — open a new chat
@@ -85,5 +92,5 @@
   const uploadData = await uploadRes.json();
   if (!uploadData.success) throw new Error(`ImgBB error: ${JSON.stringify(uploadData.error)}`);
 
-  await chrome.storage.local.set({ tempOutput: uploadData.data.url });
+  return uploadData.data.url;
 })();

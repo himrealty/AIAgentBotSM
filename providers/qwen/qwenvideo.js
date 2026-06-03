@@ -1,8 +1,15 @@
-(async () => {
-  const { tempMessage, tempVideoSize } = await chrome.storage.local.get(['tempMessage', 'tempVideoSize']);
+/**
+ * Qwen Video Generation
+ * @param {Object} context - Execution context
+ * @param {string} context.message - Prompt for video
+ * @param {string} context.videoSize - Video size/ratio (default: 16:9)
+ * @returns {Promise<string>} - Video URL
+ */
+(async (context = {}) => {
+  const tempMessage = context.message || '';
   if (!tempMessage) throw new Error('No prompt');
 
-  const ratio = tempVideoSize || '16:9';
+  const ratio = context.videoSize || '16:9';
 
   // Step 1 — open a new chat
   const newChat = document.querySelector('.sidebar-entry-fixed-list-content');
@@ -62,8 +69,5 @@
 
   if (!qwenSrc) throw new Error('Timeout waiting for generated video');
 
-  // Step 6 — hand off to background.js for B2 upload (page context is CORS-blocked)
-  console.log('[qwenvideo] ✅ Video ready, handing off to background for B2 upload...');
-  await chrome.storage.local.set({ tempVideoSrc: qwenSrc });
-  // background.js polls for tempVideoSrc, does the full B2 upload, and sets tempOutput
+  return qwenSrc;
 })();

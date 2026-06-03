@@ -1,6 +1,12 @@
 // prompt.js
-(async () => {
-  const { tempMessage } = await chrome.storage.local.get('tempMessage');
+/**
+ * ChatGPT Prompt Execution
+ * @param {Object} context - Execution context
+ * @param {string} context.message - Message to send
+ * @returns {Promise<string>} - Response text
+ */
+(async (context = {}) => {
+  const tempMessage = context.message || '';
   if (!tempMessage) throw new Error('No message to send');
 
   const editor = document.querySelector('#prompt-textarea');
@@ -33,8 +39,7 @@
     const currentMsg = getLatestAssistantMessage();
     if (currentMsg && currentMsg !== beforeMsg) {
       if (currentMsg === lastText && currentMsg.length > 10) {
-        await chrome.storage.local.set({ tempOutput: currentMsg });
-        break;
+        return currentMsg;
       }
       lastText = currentMsg;
     }

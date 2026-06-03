@@ -1,5 +1,11 @@
-(async () => {
-  const { tempMessage } = await chrome.storage.local.get('tempMessage');
+/**
+ * Claude Prompt Execution
+ * @param {Object} context - Execution context
+ * @param {string} context.message - Message to send
+ * @returns {Promise<string>} - Response text
+ */
+(async (context = {}) => {
+  const tempMessage = context.message || '';
   if (!tempMessage) throw new Error('No message');
 
   // Step 1 — snapshot current response count
@@ -40,5 +46,5 @@
     else { stable = 0; last = current; }
   }
 
-  await chrome.storage.local.set({ tempOutput: last || '(no response)' });
+  return last || '(no response)';
 })();
