@@ -1,1 +1,1 @@
-Nothing needs to be added to the .gitignore file since only a source file (server.js) was modified and there are no build artifacts, dependencies, or temporary files in the changes.
+(server.js is just a source file, no build artifacts, dependencies, or temp files in the changes)
