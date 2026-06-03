@@ -1,0 +1,8 @@
+Success! Your new application key has been created. It will only appear here once.
+
+keyID:
+005f34c82cb7e6e0000000001
+keyName:
+sanjay
+applicationKey:
+K005wIg28dvZfCe8tDWtgNd2mIJsWRU
