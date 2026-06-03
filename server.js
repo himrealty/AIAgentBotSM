@@ -10,6 +10,9 @@ const DATABASE_URL = process.env.DATABASE_URL || process.env.NEON_DATABASE_URL |
 const USE_POSTGRES = Boolean(DATABASE_URL);
 const API_KEY = process.env.API_KEY || process.env.BOT_API_KEY || '';
 const EXECUTABLE_PATH = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_BIN || process.env.CHROME_PATH;
+const HEADLESS = process.env.PUPPETEER_HEADLESS
+  ? process.env.PUPPETEER_HEADLESS.toLowerCase() === 'true'
+  : !process.env.DISPLAY;
 const SELF_PING_URL = process.env.SELF_PING_URL || process.env.RENDER_EXTERNAL_URL || process.env.BASE_URL || `http://localhost:${PORT}`;
 const SELF_PING_PATH = process.env.SELF_PING_PATH || '/status';
 const puppeteerExtra = require('puppeteer-extra');
@@ -469,7 +472,7 @@ async function ensureBrowser() {
   log(`Launching Chromium: ${exePath}`);
   browser = await puppeteerExtra.launch({
     executablePath: exePath,
-    headless: false,  // Use real browser mode for better compatibility
+    headless: HEADLESS,
     args: [
       '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
       '--disable-gpu', '--disable-background-networking',
