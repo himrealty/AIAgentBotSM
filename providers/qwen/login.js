@@ -2,15 +2,25 @@
   const email = context.email || '';
   const password = context.password || '';
   
-  // Ensure we are on a recognized Qwen URL
-  const allowedQwenHosts = ['chat.qwen.ai', 'qwen.ai', 'tongyi.aliyun.com', 'qianwen.aliyun.com'];
-  const currentHref = window.location.href || '';
-  const isQwenHost = allowedQwenHosts.some(host => currentHref.includes(host));
-  if (!isQwenHost) {
-    window.location.href = 'https://chat.qwen.ai';
-    await new Promise(r => setTimeout(r, 3000));
-  }
-
+  // Navigate directly to auth page
+  window.location.href = 'https://chat.qwen.ai/auth';
+  
+  // Wait for page to fully load by checking for auth form elements
+  console.log('Waiting for auth page to load...');
+  await new Promise((resolve) => {
+    const checkPageLoaded = () => {
+      const emailInput = document.querySelector('input[name="email"]');
+      const passwordInput = document.querySelector('input[name="password"]');
+      if (emailInput && passwordInput) {
+        console.log('Auth page loaded successfully');
+        resolve();
+      } else {
+        setTimeout(checkPageLoaded, 200);
+      }
+    };
+    checkPageLoaded();
+  });
+  
   if (!email || !password) {
     throw new Error('Email and password required');
   }
@@ -29,29 +39,18 @@
 
   console.log('Starting Qwen login...');
 
-  // 1. Click login button
-  const loginBtn = document.querySelector('button.qwen-chat-btn.header-right-auth-button');
-  if (!loginBtn) {
-    // Check if already logged in (presence of avatar or new chat button usually indicates login)
-    const userAvatar = document.querySelector('div[class*="user-avatar"]') || document.querySelector('button[data-testid="user-avatar"]');
-    if (userAvatar) {
-      return { ok: true, message: 'Already logged in' };
-    }
-    throw new Error('Login button not found');
+  // Check if already logged in
+  const userAvatar = document.querySelector('div[class*="user-avatar"]') || document.querySelector('button[data-testid="user-avatar"]');
+  if (userAvatar) {
+    return { ok: true, message: 'Already logged in' };
   }
-  loginBtn.click();
-  console.log('Clicked login button, waiting for modal...');
 
-  // Wait for modal to appear
-  await new Promise(r => setTimeout(r, 2000));
-
-  // 2. Fill email and password
+  // Fill email and password directly on auth page
   const emailInput = document.querySelector('input[name="email"]');
   const passwordInput = document.querySelector('input[name="password"]');
   
   if (!emailInput || !passwordInput) {
-    // Check if we are already on a logged-in state or modal failed
-    throw new Error('Login inputs not found. Modal may not have appeared.');
+    throw new Error('Login inputs not found on auth page.');
   }
 
   console.log('Filling credentials...');
@@ -65,7 +64,7 @@
 
   await new Promise(r => setTimeout(r, 500));
 
-  // 3. Click sign in
+  // Click sign in button
   const submitBtn = document.querySelector('button.qwenchat-auth-pc-submit-button');
   if (!submitBtn) {
     throw new Error('Submit button not found');
@@ -73,7 +72,7 @@
   submitBtn.click();
   console.log('Submitted credentials, waiting for redirect...');
 
-  // 4. Wait for redirect / success
+  // Wait for redirect / success
   let attempts = 0;
   while (attempts < 30) { // 15 seconds max wait
     await new Promise(r => setTimeout(r, 500));
