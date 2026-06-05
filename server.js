@@ -90,9 +90,13 @@ async function initDatabase() {
   }
 }
 async function ensureProfileStore() {
-  if (USE_POSTGRES) {
-    const { rows } = await dbClient.query('SELECT count(*)::int AS count FROM profiles');
-    if (rows[0].count === 0) await saveProfiles(getDefaultProfiles());
+  if (USE_POSTGRES && dbClient) {
+    try {
+      const { rows } = await dbClient.query('SELECT count(*)::int AS count FROM profiles');
+      if (rows[0].count === 0) await saveProfiles(getDefaultProfiles());
+    } catch (e) {
+      log(`ensureProfileStore failed: ${e.message}`, 'warn');
+    }
   } else if (!fs.existsSync(PROFILES_FILE)) {
     await saveProfiles(getDefaultProfiles());
   }
@@ -1743,7 +1747,11 @@ app.post('/browser/set-cookies', requireApiKey, async (req, res) => {
 (async () => {
   try {
     await initDatabase();
-    await ensureProfileStore();
+    try {
+      await ensureProfileStore();
+    } catch (e) {
+      log(`Profile store init failed: ${e.message}`, 'warn');
+    }
     app.listen(PORT, '0.0.0.0', () => log(`Server running on port ${PORT}`));
     startSelfPinger();
     ensurePage()
