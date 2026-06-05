@@ -24,10 +24,10 @@ async function initDatabase() {
   try {
     dbClient = new Pool({
       connectionString: DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: { rejectUnauthorized: false, sslmode: 'require' },
       max: 10,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
       allowExitOnIdle: true
     });
     await dbClient.query('SELECT 1');
@@ -85,11 +85,10 @@ async function initDatabase() {
     await dbClient.query(`ALTER TABLE runs ADD COLUMN IF NOT EXISTS workflow_mode text;`);
     log('✅ Connected to PostgreSQL database');
   } catch (error) {
-    log('❌ Database connection failed: ' + error.message);
-    throw error;
+    log('❌ Database connection failed: ' + error.message, 'error');
+    dbClient = null;
   }
 }
-
 async function ensureProfileStore() {
   if (USE_POSTGRES) {
     const { rows } = await dbClient.query('SELECT count(*)::int AS count FROM profiles');
